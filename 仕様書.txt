@@ -1,0 +1,4403 @@
+# CNI Motion 開発仕様書 v1.0 Complete
+
+**Document:** Codex Implementation Specification
+**Plugin:** CNI Motion
+**Version:** v1.0 Complete
+**Status:** Implementation Ready
+**Language:** Japanese UI / i18n対応
+**旧仕様書:** 本書によってすべて置き換える
+
+---
+
+# 0. Codexへの最重要指示
+
+本書を **CNI Motion v1.0の唯一の実装仕様** とする。
+
+以前作成した仕様書・旧CSS・旧JavaScriptを前提にせず、本書に基づいて新規設計すること。
+
+旧実装の以下のような方式は移植しない。
+
+```text
+.slide-up1
+.slide-up2
+.slide-up3
+.anm
+.v
+.active
+.appear
+.fadeout
+#splash
+.splashbg1
+.splashbg2
+```
+
+旧実装とのクラス互換性は不要。
+
+また以下は禁止する。
+
+* jQuery
+* window scrollごとの全DOM走査
+* 汎用的な `.active` `.visible` `.appear` 等のクラス
+* 外部Animation Libraryへの必須依存
+* Lightning固有実装
+* CNI Blocksへの必須依存
+* JavaScript失敗時にコンテンツが永久に非表示になる設計
+* Loaderが永久に残る設計
+* Otterのコード・CSS・名称体系のコピー
+
+Otterは機能要求の参考であり、CNI Motionは独自実装とする。
+
+---
+
+# 1. プラグイン概要
+
+## 1.1 名称
+
+**Plugin Name:** CNI Motion
+
+## 1.2 Slug
+
+```text
+cni-motion
+```
+
+## 1.3 Text Domain
+
+```text
+cni-motion
+```
+
+## 1.4 PHP Namespace
+
+推奨：
+
+```text
+CNI\Motion
+```
+
+---
+
+# 2. CNI Motionの目的
+
+CNI MotionはWordPress Gutenberg / Block Editorを対象とした「サイトモーション統合管理プラグイン」とする。
+
+従来、サイト制作のたびにSimple Custom CSS and JS等へ記述していた、
+
+* Fade
+* Slide
+* Zoom
+* Blur
+* Reveal
+* Mask Reveal
+* Stagger
+* Bounce
+* Swing
+* Tada
+* Jello
+* Flip
+* Page Loader
+* Hero / First View
+
+などをGUIから設定可能にする。
+
+目標は単なるスクロールアニメーションプラグインではない。
+
+> **WordPressサイトの「動き」を、ブロック・First View・Loaderまで一元管理するMotion Toolkit**
+
+とする。
+
+---
+
+# 3. 既存ワークフローを置き換える目標
+
+CNI Motion v1は以下の作業を可能な限り不要にする。
+
+### Simple Custom CSS and JS
+
+サイトごとにアニメーションCSS / JSをコピーする作業。
+
+### Otter Animations
+
+現在Otterを利用している理由のうち、少なくとも以下のMotion用途をCNI Motionで代替する。
+
+* Bouncing
+* Fading
+* Zooming
+* Flipping
+* Jello
+* Tada
+* Swing
+* Delay
+* Speed
+* Hover Trigger
+* Trigger Offset
+* Editor Replay
+
+Otter全機能の互換プラグインを目指すものではない。
+
+---
+
+# 4. CNIシリーズ内での位置付け
+
+CNI Motionは独立プラグインとする。
+
+```text
+CNI
+│
+├─ CNI Blocks
+│  └─ 独自ブロック集
+│
+├─ My Block Launcher
+│  └─ よく使うブロック呼び出し
+│
+└─ CNI Motion
+   └─ ブロック・ページ・LoaderのMotion
+```
+
+以下は必須依存にしない。
+
+```text
+CNI Blocks
+Lightning
+Lightning Child Theme
+Otter
+```
+
+CNI Blocksが存在する場合のみIntegrationを有効化する。
+
+---
+
+# 5. 対応環境
+
+v1基準：
+
+```text
+WordPress     6.7以上
+PHP           8.0以上
+Editor        Gutenberg / Block Editor
+JavaScript    Vanilla JavaScript
+CSS           CSS Transition / Animation
+Observer      IntersectionObserver
+Build         @wordpress/scripts 推奨
+```
+
+最新安定版WordPressでもテストすること。
+
+---
+
+# 6. 基本設計思想
+
+CNI Motionは必ず以下を分離する。
+
+```text
+Effect
++
+Trigger
++
+Timing
++
+Sequence
++
+Global Motion
+```
+
+---
+
+# 7. Effect
+
+「何が起こるか」。
+
+例：
+
+```text
+Fade
+Fade Up
+Zoom
+Blur Zoom
+Bounce
+Tada
+Reveal
+```
+
+---
+
+# 8. Trigger
+
+「いつ始まるか」。
+
+```text
+Auto
+Site Ready
+Scroll
+Hover
+Immediate
+```
+
+---
+
+# 9. Timing
+
+「どのくらい待ち、どのくらいの時間で動くか」。
+
+```text
+Duration / Speed
+Delay
+Easing
+Distance
+Trigger Offset
+```
+
+---
+
+# 10. Sequence
+
+複数要素を連続して表示する機能。
+
+```text
+Stagger
+Child Interval
+```
+
+---
+
+# 11. Global Motion
+
+サイト全体を制御する。
+
+```text
+Page Loader
+Site Ready
+First View
+Hero Sequence
+```
+
+---
+
+# 12. 最重要アーキテクチャ
+
+以下のように組み合わせられること。
+
+```text
+Fade + Scroll
+
+Fade + Site Ready
+
+Tada + Hover
+
+Tada + Scroll
+
+Mask Reveal + Site Ready
+
+Blur Zoom + Scroll
+```
+
+Effect側にTriggerロジックを直接書かない。
+
+Trigger側にEffect固有コードを書かない。
+
+---
+
+# 13. Effectカテゴリ
+
+v1ではEffectを3カテゴリに分類する。
+
+```text
+1. Entrance
+2. Reveal
+3. Emphasis
+```
+
+---
+
+# 14. Entrance
+
+「非表示・変形状態から通常表示へ登場するMotion」。
+
+主用途：
+
+* 通常コンテンツ
+* Hero
+* First View
+* Scroll Animation
+
+---
+
+# 15. Reveal
+
+「表示領域・マスクを使ってコンテンツを露出するMotion」。
+
+主用途：
+
+* 画像
+* Hero
+* Cover
+* セクション
+* 大きなビジュアル
+
+---
+
+# 16. Emphasis
+
+すでに表示されている要素を動かして強調するMotion。
+
+例：
+
+```text
+Tada
+Swing
+Jello
+Bounce
+```
+
+Entranceとは別カテゴリとする。
+
+---
+
+# 17. Gutenberg Inspector UI
+
+対応ブロック選択時、右サイドバーへ以下を追加する。
+
+```text
+▼ CNI Motion
+
+アニメーション
+[ なし ▼ ]
+
+発火
+[ 自動 ▼ ]
+
+速度
+[ 推奨 ▼ ]
+
+遅延
+[ なし ▼ ]
+
+表示タイミング
+[ 標準 ▼ ]
+
+詳細設定
+[ 開く ]
+
+一度だけ再生
+[ ON ]
+
+モバイル
+[ ON ]
+
+モバイルでは遅延なし
+[ ON ]
+
+[ アニメーションを再生 ]
+```
+
+Effectが `None` の場合、不要な設定は隠す。
+
+---
+
+# 18. Effect選択UI
+
+カテゴリ分けする。
+
+```text
+アニメーション
+
+よく使う
+ ├─ フェードイン
+ ├─ フェードアップ
+ ├─ ズームイン
+ ├─ ブラーズーム
+ └─ リビール
+
+Entrance
+ ├─ Fade
+ ├─ Slide
+ ├─ Zoom
+ ├─ Bounce In
+ ├─ Flip In
+ └─ Blur
+
+Reveal
+ ├─ Clip Reveal
+ └─ Mask Reveal
+
+Emphasis
+ ├─ Bounce
+ ├─ Pulse
+ ├─ Swing
+ ├─ Tada
+ ├─ Jello
+ ├─ Rubber Band
+ ├─ Wobble
+ ├─ Shake X
+ └─ Shake Y
+```
+
+最も使用頻度の高い **Fade Inを最上位** に置く。
+
+---
+
+# 19. CNI MotionのMotionデザイン原則
+
+CNI Motionは派手さより実制作での使いやすさを優先する。
+
+特にFade系について、
+
+> **標準状態では移動距離を小さくする。**
+
+長距離から飛び込んでくるFadeを標準にしない。
+
+---
+
+# 20. Fade
+
+内部Slug：
+
+```text
+fade
+```
+
+開始：
+
+```text
+opacity: 0
+```
+
+終了：
+
+```text
+opacity: 1
+```
+
+移動：
+
+```text
+なし
+```
+
+標準Duration：
+
+```text
+600ms
+```
+
+標準Easing：
+
+```text
+ease-out
+```
+
+これはCNI Motionで最も基本的なMotionとする。
+
+---
+
+# 21. Fade Up
+
+Slug：
+
+```text
+fade-up
+```
+
+開始：
+
+```text
+opacity: 0
+translateY: +16px
+```
+
+終了：
+
+```text
+opacity: 1
+translateY: 0
+```
+
+Default：
+
+```text
+Distance   16px
+Duration   600ms
+Easing     ease-out
+```
+
+---
+
+# 22. Fade Down
+
+```text
+opacity: 0
+translateY: -16px
+```
+
+から通常状態へ。
+
+---
+
+# 23. Fade Left
+
+右から左へ。
+
+```text
+opacity: 0
+translateX: +16px
+```
+
+---
+
+# 24. Fade Right
+
+左から右へ。
+
+```text
+opacity: 0
+translateX: -16px
+```
+
+---
+
+# 25. Slide系
+
+Fade Directionalよりやや大きく動く。
+
+標準距離：
+
+```text
+32px
+```
+
+v1：
+
+```text
+slide-up
+slide-down
+slide-left
+slide-right
+```
+
+開始時は基本的に、
+
+```text
+opacity: 0
+```
+
+も併用する。
+
+---
+
+# 26. Zoom In
+
+Slug：
+
+```text
+zoom-in
+```
+
+開始：
+
+```text
+opacity: 0
+scale: 0.92
+```
+
+終了：
+
+```text
+opacity: 1
+scale: 1
+```
+
+Default：
+
+```text
+Duration 600ms
+```
+
+---
+
+# 27. Zoom Out
+
+開始：
+
+```text
+opacity: 0
+scale: 1.10
+```
+
+終了：
+
+```text
+opacity: 1
+scale: 1
+```
+
+---
+
+# 28. Blur
+
+開始：
+
+```text
+opacity: 0
+filter: blur(5px)
+```
+
+終了：
+
+```text
+opacity: 1
+filter: blur(0)
+```
+
+Default：
+
+```text
+Duration 800ms
+```
+
+---
+
+# 29. Blur Zoom Out
+
+旧 `.anm` の見た目をCNI Motionとして再設計したもの。
+
+Slug：
+
+```text
+blur-zoom-out
+```
+
+標準開始：
+
+```text
+opacity: 0
+filter: blur(5px)
+scale: 1.12
+```
+
+終了：
+
+```text
+opacity: 1
+filter: blur(0)
+scale: 1
+```
+
+Default：
+
+```text
+Blur       5px
+Scale      1.12
+Duration   800ms
+Easing     ease-out
+```
+
+---
+
+# 30. Strong Blur Zoom
+
+旧実装の強さを再現したい場合のDistance/Intensity設定として、
+
+```text
+scale 1.20
+blur 5px
+```
+
+を選択可能にする。
+
+標準値は `1.12` とし、過剰なZoomを避ける。
+
+---
+
+# 31. Blur Zoom In
+
+開始：
+
+```text
+opacity: 0
+filter: blur(5px)
+scale: 0.92
+```
+
+終了：
+
+```text
+opacity: 1
+filter: blur(0)
+scale: 1
+```
+
+---
+
+# 32. Bounce In
+
+Slug：
+
+```text
+bounce-in
+```
+
+中央位置からBounceしながら出現。
+
+Default Duration：
+
+```text
+800ms
+```
+
+---
+
+# 33. Directional Bounce In
+
+v1：
+
+```text
+bounce-in-up
+bounce-in-down
+bounce-in-left
+bounce-in-right
+```
+
+移動量は大きくしすぎない。
+
+標準最大距離目安：
+
+```text
+30～40px
+```
+
+巨大な画面外移動を標準にしない。
+
+---
+
+# 34. Flip In
+
+v1：
+
+```text
+flip-in-x
+flip-in-y
+```
+
+Default：
+
+```text
+Duration 800ms
+```
+
+Perspectiveを必要以上に強くしない。
+
+---
+
+# 35. Emphasis / Bounce
+
+Slug：
+
+```text
+bounce
+```
+
+表示済みの要素がその場でBounceする。
+
+コンテンツを初期非表示にしない。
+
+---
+
+# 36. Pulse
+
+```text
+scale 1
+→ 1.05
+→ 1
+```
+
+程度の控えめな強調。
+
+---
+
+# 37. Swing
+
+Slug：
+
+```text
+swing
+```
+
+Transform Origin：
+
+```text
+top center
+```
+
+左右へ小さく振る。
+
+Default Duration：
+
+```text
+800ms
+```
+
+---
+
+# 38. Tada
+
+Slug：
+
+```text
+tada
+```
+
+小さなScale + Rotationを組み合わせた強調。
+
+Default Duration：
+
+```text
+900ms
+```
+
+---
+
+# 39. Jello
+
+Slug：
+
+```text
+jello
+```
+
+Skewを使った弾性的なMotion。
+
+Default Duration：
+
+```text
+900ms
+```
+
+---
+
+# 40. Rubber Band
+
+Slug：
+
+```text
+rubber-band
+```
+
+Scale X/Yの変化による強調。
+
+---
+
+# 41. Wobble
+
+Slug：
+
+```text
+wobble
+```
+
+控えめな左右移動 + Rotation。
+
+---
+
+# 42. Shake
+
+v1：
+
+```text
+shake-x
+shake-y
+```
+
+短い距離で振動。
+
+過剰な移動を避ける。
+
+---
+
+# 43. Revealカテゴリ
+
+v1：
+
+```text
+Clip Reveal
+Mask Reveal
+```
+
+---
+
+# 44. Clip Reveal
+
+対象自身の表示領域を広げる。
+
+実装候補：
+
+```text
+clip-path: inset()
+```
+
+v1：
+
+```text
+clip-reveal-left
+clip-reveal-right
+clip-reveal-up
+clip-reveal-down
+```
+
+Default：
+
+```text
+Duration 800ms
+Easing ease-out
+```
+
+---
+
+# 45. Clip Reveal方向
+
+「Left」は **左から右へコンテンツが現れる** ことを意味する。
+
+UIラベルでは曖昧にしない。
+
+例：
+
+```text
+左から表示
+右から表示
+上から表示
+下から表示
+```
+
+---
+
+# 46. Mask Reveal
+
+対象上に色付きマスクを表示し、そのマスクが退場することで対象を露出する。
+
+v1方向：
+
+```text
+Left → Right
+Right → Left
+Top → Bottom
+Bottom → Top
+```
+
+---
+
+# 47. Mask Color
+
+設定：
+
+```text
+白
+黒
+カスタムカラー
+```
+
+将来的にTheme Palette / Global Styles連携を追加可能にする。
+
+---
+
+# 48. Mask Reveal実装方針
+
+可能な限り擬似要素を利用する。
+
+不要なWrapperを保存HTMLへ追加しない。
+
+ただしテーマの擬似要素と衝突する可能性が高いブロックには無条件で提供しない。
+
+安全なBlock Allow Listを持つ。
+
+v1推奨：
+
+```text
+core/image
+core/group
+core/cover
+core/media-text
+CNI Container系
+```
+
+テキストにはClip Revealを優先する。
+
+---
+
+# 49. Effect Definition Registry
+
+Effectをswitch文へ大量に直書きしない。
+
+Effect Registryとして一元定義する。
+
+概念例：
+
+```js
+{
+    slug: 'fade-up',
+    category: 'entrance',
+    label: 'フェードアップ',
+
+    defaultDuration: 600,
+    defaultEasing: 'ease-out',
+
+    supports: {
+        distance: true,
+        blur: false,
+        maskColor: false
+    },
+
+    triggers: [
+        'auto',
+        'site-ready',
+        'scroll',
+        'immediate'
+    ],
+
+    reducedMotionFallback: 'fade'
+}
+```
+
+---
+
+# 50. Emphasis Registry例
+
+```js
+{
+    slug: 'tada',
+    category: 'emphasis',
+
+    defaultDuration: 900,
+
+    triggers: [
+        'auto',
+        'site-ready',
+        'scroll',
+        'hover',
+        'immediate'
+    ],
+
+    reducedMotionFallback: 'none'
+}
+```
+
+Effect追加時にMotion Engine全体を書き換えないこと。
+
+---
+
+# 51. Trigger Compatibility
+
+各Effectは使用可能Triggerを定義する。
+
+## Entrance
+
+```text
+Auto
+Site Ready
+Scroll
+Immediate
+```
+
+原則Hover不可。
+
+---
+
+# 52. Reveal
+
+```text
+Auto
+Site Ready
+Scroll
+Immediate
+```
+
+原則Hover不可。
+
+---
+
+# 53. Emphasis
+
+```text
+Auto
+Site Ready
+Scroll
+Hover
+Immediate
+```
+
+---
+
+# 54. Trigger UI
+
+Effect選択後、そのEffectで使用可能なTriggerだけ表示する。
+
+無効な組み合わせをユーザーに選ばせない。
+
+---
+
+# 55. Auto Trigger
+
+デフォルト。
+
+基本判定：
+
+```text
+ページ初期表示領域内
+↓
+Site Ready
+
+初期表示領域外
+↓
+Scroll
+```
+
+Heroをユーザーが意識せずSite Readyで発火できるようにする。
+
+---
+
+# 56. Auto判定タイミング
+
+レイアウトが確定する前に位置判定しない。
+
+Site Ready準備処理後に、
+
+```text
+getBoundingClientRect()
+```
+
+等で初期位置を判定する。
+
+---
+
+# 57. Site Ready
+
+Hero / First View用Trigger。
+
+共通イベント：
+
+```js
+document.dispatchEvent(
+    new CustomEvent('cni:site-ready')
+);
+```
+
+---
+
+# 58. Site Ready発火条件
+
+ページにつき **必ず1回だけ**。
+
+以下すべてで成立すること。
+
+```text
+Loaderあり
+Loaderなし
+Loader Skip
+Loaderエラー
+Storageエラー
+Loader最大待機Timeout
+```
+
+---
+
+# 59. Loaderあり
+
+```text
+Page Loader
+↓
+Content Exit
+↓
+Site Reveal
+↓
+Loader DOM Removal
+↓
+cni:site-ready
+↓
+Hero Motion
+```
+
+---
+
+# 60. Loaderなし
+
+```text
+DOM Ready
+↓
+初期スタイルセット
+↓
+requestAnimationFrame
+↓
+requestAnimationFrame
+↓
+cni:site-ready
+```
+
+初期状態が描画される前に最終状態へ切り替えない。
+
+---
+
+# 61. Scroll Trigger
+
+IntersectionObserverを使用する。
+
+禁止：
+
+```js
+window.addEventListener('scroll', ...)
+```
+
+で全Motion要素を毎回走査する実装。
+
+---
+
+# 62. Trigger Offset
+
+Otterで便利だったTrigger Offset相当を正式搭載する。
+
+UI：
+
+```text
+表示タイミング
+
+早め
+標準
+遅め
+カスタム
+```
+
+---
+
+# 63. Trigger Offset標準値
+
+内部値例：
+
+```text
+Early   0%
+Normal  12%
+Late    25%
+```
+
+意味：
+
+画面下端からどれだけ内側に入った位置で発火させるか。
+
+IntersectionObserver例：
+
+```text
+Normal
+rootMargin:
+0px 0px -12% 0px
+```
+
+---
+
+# 64. Custom Trigger Offset
+
+カスタム：
+
+```text
+0 ～ 50%
+```
+
+UI上では意味が理解しやすい表現にする。
+
+`threshold` や `rootMargin` という技術用語を通常UIに出さない。
+
+---
+
+# 65. Hover Trigger
+
+Emphasis系で使用。
+
+発火対象：
+
+```text
+pointerenter
+focusin
+```
+
+マウスだけでなくキーボードFocusでも発火可能にする。
+
+---
+
+# 66. Hover Replay
+
+Hover Triggerは基本的に再Hover可能。
+
+Motion実行中に連続発火して状態が破綻しないよう、
+
+```text
+running中の再発火を無視
+```
+
+または安全にrestartする。
+
+v1は「実行中は無視」でよい。
+
+---
+
+# 67. Touch Device
+
+Hoverを主要操作にしない。
+
+Hover Motionは装飾であり、機能発見や操作に依存させない。
+
+---
+
+# 68. Immediate
+
+Motion Engine準備後に即発火。
+
+特殊用途。
+
+通常はAutoまたはSite Readyを推奨。
+
+---
+
+# 69. Once / Repeat
+
+Scroll / Site Ready Motionで使用。
+
+## Once
+
+標準：
+
+```text
+ON
+```
+
+完了後、Scroll Observerから解除。
+
+---
+
+# 70. Repeat
+
+要素が画面外へ出たら開始状態へ戻し、再度入った際に再生。
+
+Entrance系でのみ意味を持つ。
+
+---
+
+# 71. Speed / Duration
+
+SpeedとDelayは完全に分離する。
+
+UI：
+
+```text
+速度
+
+推奨
+速い
+標準
+ゆっくり
+かなりゆっくり
+カスタム
+```
+
+---
+
+# 72. Speed Preset
+
+```text
+推奨             Effectごとの値
+速い             400ms
+標準             600ms
+ゆっくり         800ms
+かなりゆっくり   1200ms
+```
+
+---
+
+# 73. Custom Duration
+
+```text
+100 ～ 5000ms
+```
+
+範囲外はClampする。
+
+---
+
+# 74. Effect推奨Duration
+
+| Effect         | Default |
+| -------------- | ------: |
+| Fade           |   600ms |
+| Fade Direction |   600ms |
+| Slide          |   600ms |
+| Zoom           |   600ms |
+| Blur           |   800ms |
+| Blur Zoom      |   800ms |
+| Bounce In      |   800ms |
+| Flip In        |   800ms |
+| Clip Reveal    |   800ms |
+| Mask Reveal    |   800ms |
+| Bounce         |   800ms |
+| Pulse          |   700ms |
+| Swing          |   800ms |
+| Tada           |   900ms |
+| Jello          |   900ms |
+| Rubber Band    |   800ms |
+| Wobble         |   900ms |
+| Shake          |   600ms |
+
+---
+
+# 75. Delay
+
+UI：
+
+```text
+なし
+0.1秒
+0.2秒
+0.3秒
+0.4秒
+0.5秒
+0.6秒
+0.8秒
+1.0秒
+カスタム
+```
+
+---
+
+# 76. Custom Delay
+
+```text
+0 ～ 10000ms
+```
+
+内部値はms。
+
+---
+
+# 77. Distance
+
+Directional Motionのみ表示。
+
+```text
+移動距離
+
+極小
+小
+標準
+大
+カスタム
+```
+
+値：
+
+```text
+極小    8px
+小      16px
+標準    24px
+大      40px
+```
+
+Effect独自Defaultを優先できる。
+
+---
+
+# 78. Fade DirectionalのDefault
+
+```text
+16px
+```
+
+CNI Motionではこの控えめな距離を基本とする。
+
+---
+
+# 79. SlideのDefault
+
+```text
+32px
+```
+
+---
+
+# 80. Custom Distance
+
+```text
+0 ～ 200px
+```
+
+ただしUIでは大きすぎる移動を推奨しない。
+
+---
+
+# 81. Easing
+
+UI：
+
+```text
+推奨
+Ease Out
+Ease In Out
+Ease
+Linear
+```
+
+Effect推奨値をDefaultにする。
+
+カスタムCubic Bezier Editorはv1では不要。
+
+---
+
+# 82. Mobile Motion
+
+各ブロック：
+
+```text
+モバイルでMotion
+ON / OFF
+```
+
+Default：
+
+```text
+ON
+```
+
+---
+
+# 83. Mobile Delay
+
+```text
+モバイルで遅延
+ON / OFF
+```
+
+Default：
+
+```text
+OFF
+```
+
+つまりMotionは残すが、スマートフォンでは不要な待機時間を減らす。
+
+---
+
+# 84. Breakpoint
+
+Default：
+
+```text
+768px
+```
+
+グローバル設定から変更可能。
+
+安全範囲：
+
+```text
+480 ～ 1200px
+```
+
+---
+
+# 85. Stagger
+
+親ブロックの子要素を順番に表示する。
+
+主目的：
+
+旧、
+
+```text
+slide-up1
+slide-up2
+slide-up3
+slide-up4
+```
+
+を不要にする。
+
+---
+
+# 86. Stagger UI
+
+対応親ブロック：
+
+```text
+▼ CNI Motion
+
+子要素を順番に表示
+[ ON ]
+
+エフェクト
+[ Fade Up ]
+
+間隔
+[ 0.2秒 ]
+
+開始遅延
+[ なし ]
+
+順序
+[ 通常 ]
+```
+
+---
+
+# 87. Stagger Interval
+
+Preset：
+
+```text
+0.05秒
+0.1秒
+0.15秒
+0.2秒
+0.3秒
+0.4秒
+カスタム
+```
+
+Default：
+
+```text
+0.15秒
+```
+
+---
+
+# 88. Stagger対象
+
+v1：
+
+```text
+直下の子ブロックのみ
+```
+
+再帰的に孫以下へ適用しない。
+
+---
+
+# 89. Stagger優先順位
+
+子ブロック自身に個別CNI Motionが設定されている場合：
+
+```text
+個別設定 > 親Stagger
+```
+
+親Staggerによる自動設定は適用しない。
+
+---
+
+# 90. Stagger対応候補
+
+```text
+core/group
+core/columns
+CNI Container
+CNI Grid
+CNI Cards
+```
+
+Block Adapter方式で対応する。
+
+---
+
+# 91. Stagger Mobile
+
+Default：
+
+```text
+Mobile Delay OFF
+```
+
+つまりSPではStagger間隔を0にしてもよい。
+
+ユーザーが明示的にONへ変更可能。
+
+---
+
+# 92. Editor Preview
+
+OtterのReplay相当を正式搭載する。
+
+Inspector：
+
+```text
+[ アニメーションを再生 ]
+```
+
+---
+
+# 93. Editor Previewルール
+
+* 保存不要で確認可能
+* 編集画面で無限自動再生しない
+* 選択ブロックのみ再生
+* 実際のDuration / Delayを反映
+* Loader Previewとは別機能
+
+---
+
+# 94. Page Loader
+
+Page Loaderはブロック設定ではなく、
+
+```text
+WordPress管理画面
+→ CNI Motion
+→ Page Loader
+```
+
+で設定する。
+
+---
+
+# 95. CNI Motion管理画面
+
+構成：
+
+```text
+CNI Motion
+│
+├─ 基本設定
+├─ Motion Defaults
+├─ Page Loader
+└─ Advanced
+```
+
+---
+
+# 96. 基本設定
+
+```text
+CNI Motion全体
+ON / OFF
+
+Reduced Motion対応
+ON
+
+データ削除
+アンインストール時に設定削除
+OFF
+```
+
+---
+
+# 97. Motion Defaults
+
+```text
+Default Speed
+[ 推奨 ]
+
+Default Delay
+[ なし ]
+
+Mobile Motion
+[ ON ]
+
+Mobile Delay
+[ OFF ]
+
+Mobile Breakpoint
+[ 768px ]
+
+Default Trigger Offset
+[ 標準 ]
+```
+
+ブロック個別設定はGlobal Defaultを上書きする。
+
+---
+
+# 98. Page Loader基本UI
+
+```text
+CNI Motion / Page Loader
+
+ローダー
+[ ON ]
+
+■ 表示条件
+
+表示対象
+[ トップページのみ ]
+
+表示頻度
+[ セッションごとに1回 ]
+
+管理者
+[ 表示しない ]
+
+■ Loader Content
+
+種類
+[ サイトロゴ ]
+
+■ Content Motion
+
+Enter
+[ Fade ]
+
+保持
+[ 700ms ]
+
+Exit
+[ Fade Out ]
+
+■ Background
+
+背景色
+[ #ffffff ]
+
+■ Site Reveal
+
+[ Split Horizontal ]
+
+■ Safety
+
+最大待機
+[ 3000ms ]
+
+[ Loaderをプレビュー ]
+
+[ このブラウザの表示履歴をリセット ]
+```
+
+---
+
+# 99. Loader表示対象
+
+v1：
+
+```text
+トップページのみ
+全ページ
+```
+
+---
+
+# 100. 将来の表示対象
+
+設計上以下を追加可能にする。
+
+```text
+指定ページ
+指定投稿タイプ
+除外ページ
+```
+
+v1では実装必須ではない。
+
+---
+
+# 101. Loader Frequency
+
+v1必須：
+
+```text
+毎回
+セッションごとに1回
+初回訪問のみ
+```
+
+---
+
+# 102. Always
+
+内部：
+
+```text
+always
+```
+
+対象ページを開くたびに表示。
+
+---
+
+# 103. Session Once
+
+内部：
+
+```text
+session
+```
+
+`sessionStorage` を利用。
+
+例：
+
+```text
+cni_motion_loader_session_v1
+```
+
+同一タブ・ブラウザセッション中は再表示しない。
+
+---
+
+# 104. First Visit Only
+
+内部：
+
+```text
+first-visit
+```
+
+`localStorage` を利用。
+
+例：
+
+```text
+cni_motion_loader_seen_v1
+```
+
+同一ブラウザでは基本1回のみ。
+
+Cookie・WordPressユーザー単位ではない。
+
+---
+
+# 105. Storage Error
+
+Private Mode等でStorageアクセスに失敗してもJSエラーにしない。
+
+必ずtry/catchする。
+
+Storageが利用できない場合：
+
+```text
+Loader表示
+↓
+通常完了
+```
+
+を優先する。
+
+---
+
+# 106. Future Frequency
+
+将来：
+
+```text
+1時間に1回
+24時間に1回
+7日に1回
+Custom Duration
+```
+
+v1では不要。
+
+---
+
+# 107. Loader Content Type
+
+v1：
+
+```text
+Site Logo
+Custom Image
+Site Title
+Custom Text
+Line
+Dots
+None
+```
+
+---
+
+# 108. Site Logo
+
+WordPressのSite Logoを自動取得。
+
+設定：
+
+```text
+Desktop Width
+Mobile Width
+```
+
+Default：
+
+```text
+Desktop 300px
+Mobile  180px
+```
+
+Range：
+
+```text
+50 ～ 800px
+```
+
+画像比率を維持する。
+
+---
+
+# 109. Custom Image
+
+Media LibraryからLoader専用画像を選択。
+
+用途：
+
+```text
+通常ロゴ = 黒
+Loader背景 = 黒
+Loaderロゴ = 白
+```
+
+など。
+
+---
+
+# 110. Site Title
+
+WordPress Site Titleを使用。
+
+設定：
+
+```text
+Desktop Font Size
+Mobile Font Size
+Font Weight
+Letter Spacing
+Text Color
+```
+
+---
+
+# 111. Custom Text
+
+Plain Textのみ。
+
+HTMLは禁止。
+
+例：
+
+```text
+WELCOME
+CNI
+BRAND NAME
+```
+
+---
+
+# 112. Line Loader
+
+ロゴがない場合のMinimal Loader。
+
+中央に短いラインを表示し、左右または一方向へ伸縮。
+
+これは **実際のファイル読込進捗率ではない**。
+
+装飾Animationであること。
+
+---
+
+# 113. Dots Loader
+
+シンプルな複数ドットMotion。
+
+Reduced Motion時は静止表示または非表示。
+
+---
+
+# 114. None
+
+中央コンテンツなし。
+
+背景Revealのみを実行可能。
+
+---
+
+# 115. Loader Content Motion
+
+ContentとBackground Exitを分離する。
+
+Loader Sequence：
+
+```text
+1. Content Enter
+2. Hold / Ready Wait
+3. Content Exit
+4. Site Reveal
+5. Loader Remove
+6. Site Ready
+```
+
+---
+
+# 116. Content Enter
+
+v1：
+
+```text
+None
+Fade
+Fade Up
+Zoom In
+Blur In
+Clip Reveal
+```
+
+---
+
+# 117. Content Enter Duration
+
+Preset + Custom。
+
+Default：
+
+```text
+400ms
+```
+
+---
+
+# 118. Hold
+
+Loader Contentを最低限表示する時間。
+
+Default：
+
+```text
+700ms
+```
+
+Range：
+
+```text
+0 ～ 5000ms
+```
+
+---
+
+# 119. Page Ready Gate
+
+Loaderは単純な固定Timerだけで閉じない。
+
+以下を考慮する。
+
+```text
+Content Minimum Hold
++
+Page Ready
+```
+
+Page Ready標準：
+
+```text
+window.load
+```
+
+ただしMaximum Waitを必ず持つ。
+
+---
+
+# 120. Loader Exit開始条件
+
+Content Exitは以下の両方を満たしたら開始する。
+
+```text
+A. Minimum Hold完了
+B. window.load または Maximum Wait到達
+```
+
+つまり、
+
+```text
+Exit Start = max(Hold End, Ready Gate)
+```
+
+とする。
+
+---
+
+# 121. Maximum Wait
+
+Default：
+
+```text
+3000ms
+```
+
+意味：
+
+ページロード完了待機の最大時間。
+
+Maximum Waitを超えたら、
+
+```text
+強制的にExit Sequenceへ進む
+```
+
+Loaderを永久表示しない。
+
+---
+
+# 122. Content Exit
+
+v1：
+
+```text
+None
+Fade Out
+Zoom Out
+Blur Out
+Slide Up
+```
+
+Default：
+
+```text
+Fade Out
+400ms
+```
+
+---
+
+# 123. Loader Background
+
+v1：
+
+```text
+Solid Color
+```
+
+Default：
+
+```text
+#ffffff
+```
+
+Color Pickerを使用。
+
+---
+
+# 124. Future Background
+
+将来：
+
+```text
+Gradient
+Image
+Theme Palette
+```
+
+v1必須ではない。
+
+---
+
+# 125. Site Reveal
+
+中央コンテンツ終了後、Loader背景を退場させてサイトを表示する。
+
+v1：
+
+```text
+Fade
+Split Horizontal
+Split Vertical
+Wipe Left
+Wipe Right
+Wipe Up
+Wipe Down
+Circle Reveal
+```
+
+---
+
+# 126. Classic Split
+
+現在よく使用しているLoaderの後継Preset。
+
+設定：
+
+```text
+Content           Site Logo
+Desktop Width     300px
+Mobile Width      180px
+
+Enter             None / Fade
+Hold              700ms
+
+Content Exit      Fade Out
+Exit Duration     400ms
+
+Background        #ffffff
+
+Site Reveal       Split Horizontal
+Reveal Duration   500ms
+```
+
+Preset名：
+
+```text
+Classic Split
+```
+
+---
+
+# 127. Split Horizontal
+
+画面を左右2枚のパネルとして扱う。
+
+```text
+██████│██████
+
+        ↓
+
+←████    ████→
+
+        ↓
+
+       SITE
+```
+
+Duration Default：
+
+```text
+500ms
+```
+
+---
+
+# 128. Split Vertical
+
+```text
+上半分 → 上
+下半分 → 下
+```
+
+---
+
+# 129. Wipe
+
+一枚の背景を指定方向へ退場。
+
+```text
+wipe-left
+wipe-right
+wipe-up
+wipe-down
+```
+
+---
+
+# 130. Circle Reveal
+
+中央から円状にサイトを露出。
+
+実装候補：
+
+```text
+clip-path: circle()
+```
+
+非対応・Reduced Motion時はFadeへFallback。
+
+---
+
+# 131. Loader Presets
+
+v1：
+
+```text
+Classic Split
+Minimal Fade
+Brand Wipe
+Circle
+```
+
+---
+
+# 132. Minimal Fade
+
+```text
+Logo Fade In
+Hold
+Logo Fade Out
+Background Fade
+```
+
+---
+
+# 133. Brand Wipe
+
+```text
+Logo Blur In
+Hold
+Logo Fade Out
+Wipe Right
+```
+
+---
+
+# 134. Circle
+
+```text
+Logo Zoom In
+Hold
+Logo Fade Out
+Circle Reveal
+```
+
+---
+
+# 135. Preset編集
+
+Preset適用後も各設定を変更可能。
+
+Presetを選んだ瞬間に各値を読み込み、その後は通常設定値として保持する。
+
+---
+
+# 136. Loader Preview
+
+管理画面：
+
+```text
+[ Loaderをプレビュー ]
+```
+
+Frequencyを無視する。
+
+Admin Skipを無視する。
+
+---
+
+# 137. Preview v1
+
+v1では管理画面上のFullscreen Preview Overlayでも可。
+
+保存前プレビューが理想。
+
+難しい場合、
+
+```text
+保存
+↓
+Preview
+```
+
+でもv1成立とする。
+
+---
+
+# 138. Loader History Reset
+
+管理画面：
+
+```text
+[ このブラウザのLoader履歴をリセット ]
+```
+
+削除対象：
+
+```text
+CNI Motion自身のsessionStorage Key
+CNI Motion自身のlocalStorage Key
+```
+
+禁止：
+
+```js
+localStorage.clear()
+sessionStorage.clear()
+```
+
+---
+
+# 139. Admin Skip
+
+設定：
+
+```text
+ログイン中の管理者にはLoaderを表示しない
+```
+
+Default：
+
+```text
+ON
+```
+
+Capabilityの基準は管理画面設定可能ユーザーを考慮する。
+
+---
+
+# 140. Loader Scroll Lock
+
+Loader表示中に裏側ページがスクロールしないよう制御する。
+
+例：
+
+```text
+html.cni-loader-lock
+```
+
+Loader完了・エラー時には必ず解除。
+
+---
+
+# 141. Loader Accessibility
+
+Loaderは装飾的UIとして扱う。
+
+原則：
+
+```html
+aria-hidden="true"
+```
+
+LoaderのためにScreen Readerから本文を隠さない。
+
+Focus Trapは行わない。
+
+---
+
+# 142. Loader DOM Output
+
+基本：
+
+```text
+wp_body_open
+```
+
+でbody開始直後に出力。
+
+Loaderが無効ならHTMLを出力しない。
+
+---
+
+# 143. wp_body_open非対応Theme
+
+Loader DOMが出力されなかった場合、
+
+CNI Motion Frontendはエラーにせず、
+
+```text
+Loaderなし
+↓
+Site Ready
+```
+
+として動作する。
+
+Loaderがないことによってページを止めない。
+
+---
+
+# 144. Loader State Machine
+
+内部状態：
+
+```text
+idle
+
+→ active
+
+→ waiting
+
+→ content-exit
+
+→ site-reveal
+
+→ complete
+
+→ site-ready
+```
+
+状態をTimerの乱立だけで管理しない。
+
+---
+
+# 145. Loader Custom Events
+
+```text
+cni:loader-start
+cni:loader-content-exit
+cni:loader-reveal
+cni:loader-complete
+cni:site-ready
+```
+
+---
+
+# 146. Site ReadyとHero
+
+Hero側はLoaderの存在を知らない。
+
+禁止：
+
+```text
+Heroコード
+↓
+Loaderがあるか確認
+↓
+Loader Storageを確認
+```
+
+Heroは、
+
+```text
+cni:site-ready
+```
+
+だけを見る。
+
+---
+
+# 147. Hero例
+
+```text
+Loader Logo
+↓
+Split Open
+↓
+Site Ready
+↓
+Hero Background
+↓
+Heading Mask/Clip Reveal
+↓
+Paragraph Fade Up
+↓
+Button Fade Up
+```
+
+---
+
+# 148. Hero Background Slow Zoom
+
+v1では専用Effectとして必須にしない。
+
+ただし将来追加可能な構造にする。
+
+v1ではZoom系をブロック単位で利用可能。
+
+---
+
+# 149. Block Attributes
+
+Prefix：
+
+```text
+cniMotion
+```
+
+---
+
+# 150. v1 Block Attributes
+
+```text
+cniMotionEnabled
+
+cniMotionEffect
+cniMotionTrigger
+
+cniMotionSpeedMode
+cniMotionDuration
+
+cniMotionDelayMode
+cniMotionDelay
+
+cniMotionEasing
+
+cniMotionDistanceMode
+cniMotionDistance
+
+cniMotionTriggerOffsetMode
+cniMotionTriggerOffset
+
+cniMotionOnce
+
+cniMotionMobile
+cniMotionMobileDelay
+
+cniMotionStagger
+cniMotionStaggerEffect
+cniMotionStaggerInterval
+
+cniMotionMaskColor
+```
+
+不要なAttributeはEffectに応じて無視する。
+
+---
+
+# 151. 保存例
+
+```json
+{
+  "cniMotionEnabled": true,
+  "cniMotionEffect": "fade-up",
+  "cniMotionTrigger": "auto",
+  "cniMotionSpeedMode": "recommended",
+  "cniMotionDuration": 600,
+  "cniMotionDelayMode": "preset",
+  "cniMotionDelay": 200,
+  "cniMotionEasing": "recommended",
+  "cniMotionDistanceMode": "effect-default",
+  "cniMotionDistance": 16,
+  "cniMotionTriggerOffsetMode": "normal",
+  "cniMotionTriggerOffset": 12,
+  "cniMotionOnce": true,
+  "cniMotionMobile": true,
+  "cniMotionMobileDelay": false
+}
+```
+
+---
+
+# 152. Attribute登録
+
+対応ブロックのAttributeをWordPress Block Registration段階で追加する。
+
+サーバー側をSource of Truthとする。
+
+Editor側拡張と矛盾しないこと。
+
+---
+
+# 153. InspectorControls
+
+Editor拡張はWordPress Block Editorの標準Filter/HOC方式を使用する。
+
+既存Blockのedit/save関数を直接書き換えない。
+
+---
+
+# 154. 保存HTML
+
+Motion用のHTMLをブロックsave()へ過剰に焼き込まない。
+
+Block Attributeとして保存し、Frontend Rendering時にMotion属性を追加する設計を優先する。
+
+---
+
+# 155. Frontend Rendering
+
+`render_block` 系Filterを利用。
+
+HTML加工にはWordPress HTML APIを使用する。
+
+正規表現によるHTMLタグ書き換えを避ける。
+
+---
+
+# 156. Frontend HTML例
+
+```html
+<div
+    class="cni-motion"
+    data-cni-motion="fade-up"
+    data-cni-trigger="scroll"
+    data-cni-duration="600"
+    data-cni-delay="200"
+    data-cni-offset="12"
+>
+```
+
+---
+
+# 157. CSS Custom Properties
+
+必要に応じてFrontend JSが、
+
+```css
+--cni-motion-duration
+--cni-motion-delay
+--cni-motion-distance
+--cni-motion-mask-color
+```
+
+を設定する。
+
+既存inline styleを破壊しない。
+
+---
+
+# 158. Motion Element State
+
+共通State：
+
+```text
+cni-motion--pending
+cni-motion--running
+cni-motion--complete
+```
+
+汎用：
+
+```text
+active
+visible
+appear
+```
+
+等は禁止。
+
+---
+
+# 159. Transform競合対策
+
+CNI MotionのTransformはMotion実行中のみ適用する。
+
+Once完了後は不要なMotion Transformを残さない。
+
+テーマや他プラグインが持つ通常Transformを永久に上書きしない。
+
+---
+
+# 160. Emphasis Transform
+
+Tada / Swing等もAnimation完了後に元のElement状態へ戻す。
+
+Animation Fill ModeによってTransform状態を永久保持しない。
+
+---
+
+# 161. IntersectionObserver Registry
+
+要素ごとに無条件でObserverを新規生成しない。
+
+同じTrigger Offsetを持つ要素は可能な限りObserverを共有する。
+
+例：
+
+```text
+Observer Early
+Observer Normal
+Observer Late
+```
+
+Custom Offsetは必要に応じて別Registry。
+
+---
+
+# 162. Observer解除
+
+Once Motion：
+
+```text
+完了
+↓
+unobserve()
+```
+
+不要な監視を残さない。
+
+---
+
+# 163. Motion Event
+
+予約：
+
+```text
+cni:motion-ready
+cni:motion-start
+cni:motion-complete
+```
+
+CustomEvent `detail` には必要に応じて、
+
+```text
+element
+effect
+trigger
+```
+
+等を含められる設計とする。
+
+---
+
+# 164. Fail Safe
+
+最重要。
+
+以下のCSSは禁止。
+
+```css
+[data-cni-motion] {
+    opacity: 0;
+}
+```
+
+をJS状態に関係なく適用してはならない。
+
+---
+
+# 165. JS Ready Class
+
+Motion初期状態は例えば、
+
+```text
+html.cni-motion-js
+```
+
+等が存在する場合のみ有効化する。
+
+---
+
+# 166. Early Bootstrap
+
+必要ならHeadで非常に小さなBootstrapを使用し、
+
+```text
+cni-motion-js
+```
+
+を早期付与する。
+
+ただしMain Engineが起動しなかった場合に解除するFallbackを必ず設ける。
+
+---
+
+# 167. JS Failure
+
+最終原則：
+
+```text
+JS成功
+→ Motion
+
+JS失敗
+→ 通常表示
+```
+
+絶対に逆にしない。
+
+---
+
+# 168. Loader Failure
+
+同様：
+
+```text
+Loader成功
+→ 演出して表示
+
+Loader失敗
+→ 即サイト表示
+```
+
+Loaderはサイト表示の必須条件ではない。
+
+---
+
+# 169. Reduced Motion
+
+OSの、
+
+```text
+prefers-reduced-motion: reduce
+```
+
+を尊重する。
+
+---
+
+# 170. Reduced Motion Entrance
+
+以下を大幅に削減またはFadeへFallback。
+
+```text
+Slide
+Bounce
+Flip
+Zoom
+Blur
+```
+
+---
+
+# 171. Reduced Motion Emphasis
+
+```text
+Tada
+Jello
+Swing
+Bounce
+Wobble
+Shake
+```
+
+は原則実行しない。
+
+---
+
+# 172. Reduced Motion Reveal
+
+Clip / Mask Revealは、
+
+```text
+短いFade
+または即表示
+```
+
+へFallback。
+
+---
+
+# 173. Reduced Motion Loader
+
+以下は使わない。
+
+```text
+Split
+Wipe
+Circle
+Zoom
+```
+
+代わりに、
+
+```text
+即表示
+または非常に短いFade
+```
+
+とする。
+
+目安：
+
+```text
+150ms以下
+```
+
+---
+
+# 174. Performance原則
+
+優先：
+
+```text
+opacity
+transform
+```
+
+必要時のみ：
+
+```text
+filter
+clip-path
+```
+
+---
+
+# 175. Blur
+
+Blurは描画負荷が高いため、
+
+Default：
+
+```text
+5px
+```
+
+程度に留める。
+
+極端なBlur値を標準Presetにしない。
+
+---
+
+# 176. will-change
+
+ページ全体へ恒久的に `will-change` を設定しない。
+
+必要なMotion実行直前のみ利用し、完了後に解除する。
+
+---
+
+# 177. Motion Asset Loading
+
+Motion対象がないページで重い初期化を行わない。
+
+Page Loader OFFならLoader専用処理を可能な限り読み込まない。
+
+---
+
+# 178. CSS分離
+
+推奨：
+
+```text
+motion.css
+loader.css
+admin.css
+editor.css
+```
+
+必要性に応じてBuild時統合してもよいが、責務は分離する。
+
+---
+
+# 179. 対応Core Blocks v1
+
+正式対象：
+
+```text
+core/paragraph
+core/heading
+core/image
+core/group
+core/cover
+core/columns
+core/column
+core/buttons
+core/button
+core/media-text
+core/list
+core/list-item
+```
+
+---
+
+# 180. 特殊Block除外
+
+初期除外：
+
+```text
+core/html
+core/shortcode
+core/template-part
+core/query
+core/post-template
+```
+
+安全性を確認してから追加する。
+
+---
+
+# 181. Effect Block Support Matrix
+
+すべてのEffectをすべてのBlockへ出さない。
+
+例：
+
+### Paragraph
+
+```text
+Entrance   YES
+Emphasis   YES
+Clip       YES
+Mask       NO
+Stagger    NO
+```
+
+### Image
+
+```text
+Entrance   YES
+Emphasis   YES
+Clip       YES
+Mask       YES
+```
+
+### Group
+
+```text
+Entrance   YES
+Emphasis   YES
+Clip       YES
+Mask       YES
+Stagger    YES
+```
+
+### Columns
+
+```text
+Entrance   YES
+Stagger    YES
+```
+
+Registryで管理する。
+
+---
+
+# 182. CNI Blocks Integration
+
+CNI Blocksが存在する場合のみ追加。
+
+独立ファイル：
+
+```text
+integrations/cni-blocks.php
+```
+
+または専用Integration Class。
+
+---
+
+# 183. CNI Blocks Dependency
+
+禁止：
+
+```text
+CNI Motionを使うにはCNI Blocks必須
+```
+
+逆も禁止。
+
+---
+
+# 184. Integration例
+
+CNI Blocksの構造が明確な場合、
+
+```text
+CNI Grid → Stagger
+CNI Cards → Stagger
+CNI Container → Reveal
+```
+
+等を最適化。
+
+---
+
+# 185. Settings Storage
+
+Option：
+
+```text
+cni_motion_settings
+```
+
+原則1Option。
+
+---
+
+# 186. Settings Schema
+
+例：
+
+```json
+{
+  "schemaVersion": 1,
+
+  "general": {},
+
+  "defaults": {},
+
+  "loader": {},
+
+  "accessibility": {}
+}
+```
+
+---
+
+# 187. Settings Migration
+
+将来設定構造が変わることを想定し、
+
+```text
+schemaVersion
+```
+
+を必ず持つ。
+
+Plugin VersionとSettings Schema Versionを混同しない。
+
+---
+
+# 188. Loader Settings例
+
+```json
+{
+  "enabled": true,
+  "scope": "front-page",
+  "frequency": "session",
+
+  "skipAdmin": true,
+
+  "preset": "classic-split",
+
+  "contentType": "site-logo",
+
+  "logoDesktopWidth": 300,
+  "logoMobileWidth": 180,
+
+  "contentEnter": "fade",
+  "contentEnterDuration": 400,
+
+  "holdDuration": 700,
+
+  "contentExit": "fade-out",
+  "contentExitDuration": 400,
+
+  "backgroundColor": "#ffffff",
+
+  "siteReveal": "split-horizontal",
+  "siteRevealDuration": 500,
+
+  "maxWait": 3000
+}
+```
+
+---
+
+# 189. Security
+
+Settings capability：
+
+```text
+manage_options
+```
+
+を基本とする。
+
+---
+
+# 190. Sanitize
+
+必須：
+
+```text
+Color       → sanitize
+Text        → plain text sanitize
+Media ID    → integer
+Duration    → integer + range
+Delay       → integer + range
+Distance    → integer + range
+Preset      → allow list
+Effect      → allow list
+Trigger     → allow list
+Easing      → allow list
+```
+
+---
+
+# 191. Arbitrary CSS禁止
+
+ユーザーから自由なCSS文字列を入力させない。
+
+v1 Customは、
+
+```text
+数値
+色
+```
+
+等の安全な値に限定。
+
+---
+
+# 192. CSS Class Naming
+
+必ずPrefix。
+
+```text
+.cni-motion
+.cni-motion--pending
+.cni-motion--running
+.cni-motion--complete
+
+.cni-loader
+.cni-loader__content
+.cni-loader__panel
+.cni-loader--active
+.cni-loader--exiting
+
+.cni-site-ready
+```
+
+---
+
+# 193. Storage Key Naming
+
+必ず：
+
+```text
+cni_motion_
+```
+
+Prefix。
+
+---
+
+# 194. Event Naming
+
+必ず：
+
+```text
+cni:
+```
+
+Prefix。
+
+---
+
+# 195. 推奨ファイル構成
+
+```text
+cni-motion/
+│
+├─ cni-motion.php
+├─ uninstall.php
+├─ readme.txt
+├─ package.json
+│
+├─ includes/
+│  ├─ class-plugin.php
+│  ├─ class-assets.php
+│  ├─ class-settings.php
+│  ├─ class-block-attributes.php
+│  ├─ class-block-renderer.php
+│  ├─ class-loader.php
+│  ├─ class-compatibility.php
+│  └─ helpers.php
+│
+├─ src/
+│  │
+│  ├─ editor/
+│  │  ├─ index.js
+│  │  ├─ inspector.js
+│  │  ├─ preview.js
+│  │  ├─ block-support.js
+│  │  │
+│  │  ├─ controls/
+│  │  │  ├─ EffectControl.js
+│  │  │  ├─ TriggerControl.js
+│  │  │  ├─ SpeedControl.js
+│  │  │  ├─ DelayControl.js
+│  │  │  ├─ DistanceControl.js
+│  │  │  ├─ OffsetControl.js
+│  │  │  └─ StaggerControl.js
+│  │  │
+│  │  └─ presets/
+│  │     ├─ effects.js
+│  │     └─ block-support.js
+│  │
+│  ├─ frontend/
+│  │  ├─ index.js
+│  │  ├─ engine.js
+│  │  ├─ observer.js
+│  │  ├─ triggers.js
+│  │  ├─ site-ready.js
+│  │  ├─ stagger.js
+│  │  ├─ hover.js
+│  │  └─ loader.js
+│  │
+│  └─ admin/
+│     ├─ index.js
+│     ├─ settings.js
+│     └─ loader-preview.js
+│
+├─ assets/
+│  ├─ css/
+│  │  ├─ motion.css
+│  │  ├─ effects.css
+│  │  ├─ loader.css
+│  │  ├─ editor.css
+│  │  └─ admin.css
+│  │
+│  └─ images/
+│
+└─ integrations/
+   └─ cni-blocks.php
+```
+
+Codexは必要に応じてファイル数を合理化してよい。
+
+責務分離は維持すること。
+
+---
+
+# 196. Otterとの共存
+
+CNI MotionはOtterを自動停止・変更しない。
+
+両方が有効でもPlugin Errorを起こさない。
+
+ただし同一Blockに複数Animation Systemを重ねた場合のTransform競合は保証しない。
+
+v1ではOtter Animationの自動移行は実装しない。
+
+---
+
+# 197. Legacy CSSとの互換
+
+以下の旧ClassをCNI Motionが自動解釈する機能はv1では不要。
+
+```text
+slide-up1
+slide-up2
+slide-left3
+anm
+v
+```
+
+既存サイトの移行は手動。
+
+---
+
+# 198. v1で実装しないもの
+
+以下はv1 Scope外。
+
+```text
+1文字ずつText Animation
+Word単位Animation
+Line単位Text Split
+GSAP
+Parallax
+Mouse Follow
+Scroll Progress
+Scroll Scrub
+Complex Timeline Editor
+Real Loading Percentage
+User Custom Keyframes
+Arbitrary CSS Editor
+24時間Frequency
+7日Frequency
+Page Builder専用対応
+Otter Animation自動変換
+```
+
+---
+
+# 199. Future候補
+
+v1以降：
+
+```text
+Text Reveal
+Character Animation
+Background Slow Zoom
+Parallax
+Custom Preset Save
+Timeline
+Advanced Loader
+Typography Loader
+Theme Palette Integration
+Conditional Loader
+Scroll-linked Motion
+```
+
+---
+
+# 200. v1必須Effect一覧
+
+## Entrance
+
+```text
+Fade
+Fade Up
+Fade Down
+Fade Left
+Fade Right
+
+Slide Up
+Slide Down
+Slide Left
+Slide Right
+
+Zoom In
+Zoom Out
+
+Blur
+Blur Zoom In
+Blur Zoom Out
+
+Bounce In
+Bounce In Up
+Bounce In Down
+Bounce In Left
+Bounce In Right
+
+Flip In X
+Flip In Y
+```
+
+---
+
+# 201. v1必須Reveal
+
+```text
+Clip Reveal Left
+Clip Reveal Right
+Clip Reveal Up
+Clip Reveal Down
+
+Mask Reveal Left → Right
+Mask Reveal Right → Left
+Mask Reveal Top → Bottom
+Mask Reveal Bottom → Top
+```
+
+---
+
+# 202. v1必須Emphasis
+
+```text
+Bounce
+Pulse
+Swing
+Tada
+Jello
+Rubber Band
+Wobble
+Shake X
+Shake Y
+```
+
+---
+
+# 203. v1必須Trigger
+
+```text
+Auto
+Site Ready
+Scroll
+Hover
+Immediate
+```
+
+EffectごとのCompatibilityを守る。
+
+---
+
+# 204. v1必須Timing
+
+```text
+Recommended Speed
+Speed Presets
+Custom Duration
+
+Delay Presets
+Custom Delay
+
+Distance Presets
+Custom Distance
+
+Trigger Offset Presets
+Custom Trigger Offset
+
+Easing
+```
+
+---
+
+# 205. v1必須Responsive
+
+```text
+Mobile Motion ON/OFF
+Mobile Delay ON/OFF
+Global Breakpoint
+```
+
+---
+
+# 206. v1必須Stagger
+
+```text
+Group
+Columns
+CNI Integration可能部分
+
+直下Child
+Interval
+Individual Override
+Mobile Delay Handling
+```
+
+---
+
+# 207. v1必須Editor
+
+```text
+Inspector Panel
+Effectカテゴリ
+Dynamic Controls
+Replay Button
+```
+
+---
+
+# 208. v1必須Page Loader
+
+```text
+ON / OFF
+
+Front Page
+All Pages
+
+Always
+Session Once
+First Visit Only
+
+Site Logo
+Custom Image
+Site Title
+Custom Text
+Line
+Dots
+None
+
+Desktop Logo Size
+Mobile Logo Size
+
+Content Enter
+Hold
+Content Exit
+
+Solid Background Color
+
+Fade
+Split Horizontal
+Split Vertical
+Wipe 4 Direction
+Circle Reveal
+
+Maximum Wait
+Admin Skip
+Preview
+Storage Reset
+```
+
+---
+
+# 209. v1必須Global Integration
+
+```text
+Loader → Site Ready
+
+Loader Skip → Site Ready
+
+Loader Failure → Site Ready
+
+No Loader → Site Ready
+
+Site Ready → Hero Motion
+```
+
+---
+
+# 210. QA：Motion
+
+各Effectについて確認：
+
+```text
+Frontend動作
+Editor Replay
+Speed
+Delay
+Reduced Motion
+Mobile
+Once
+Repeat
+```
+
+---
+
+# 211. QA：Trigger
+
+確認：
+
+```text
+Hero initial viewport
+Below fold
+Scroll backward
+Repeat
+Hover mouse
+Hover keyboard focus
+Immediate
+```
+
+---
+
+# 212. QA：Trigger Offset
+
+```text
+Early
+Normal
+Late
+Custom 0
+Custom 50
+```
+
+---
+
+# 213. QA：Stagger
+
+```text
+Group 3 children
+Group 10 children
+Columns
+Child override
+Mobile no-delay
+Nested group
+```
+
+Nestedは直下のみ適用されること。
+
+---
+
+# 214. QA：Loader
+
+確認：
+
+```text
+Front Page only
+All Pages
+
+Always
+Session
+First Visit
+
+Storage unavailable
+
+Fast connection
+Slow connection
+window.load never/late
+
+Max Wait
+
+Admin Skip
+
+Preview
+
+Storage Reset
+```
+
+---
+
+# 215. QA：Loader Content
+
+```text
+Site Logo exists
+Site Logo missing
+Custom Image
+Site Title
+Custom Text
+Line
+Dots
+None
+```
+
+Site Logoが設定されていない場合にFatal/Errorを起こさない。
+
+---
+
+# 216. Site Logo Missing
+
+`contentType = site-logo` なのにSite Logoが存在しない場合：
+
+Fallback：
+
+```text
+Site Title
+```
+
+を推奨。
+
+Site Titleも空なら：
+
+```text
+None
+```
+
+へFallback。
+
+---
+
+# 217. QA：Loader Hero
+
+確認：
+
+```text
+Loader表示
+→ Hero発火
+
+Loader Skip
+→ Hero発火
+
+Loader OFF
+→ Hero発火
+
+Loader Error
+→ Hero発火
+```
+
+Hero MotionがLoader裏で先に終了しないこと。
+
+---
+
+# 218. QA：Fail Safe
+
+意図的にFrontend Main JSを停止。
+
+期待：
+
+```text
+本文が読める
+Motion対象が透明のまま残らない
+```
+
+---
+
+# 219. QA：Loader Fail Safe
+
+Loader JSへ意図的な失敗を発生。
+
+期待：
+
+```text
+Loaderが消える
+Scroll Lock解除
+サイト表示
+```
+
+---
+
+# 220. QA：Accessibility
+
+```text
+prefers-reduced-motion
+Keyboard Focus
+Screen Reader DOM
+Loader aria-hidden
+```
+
+Motionが情報取得の必須条件になっていないこと。
+
+---
+
+# 221. QA：Performance
+
+大量要素テスト：
+
+```text
+50 Motion Blocks
+100 Motion Blocks
+20 Blur Motion
+Stagger 20 children
+```
+
+スクロール時に毎Frame全DOM走査しないこと。
+
+---
+
+# 222. QA：Theme
+
+最低限：
+
+```text
+WordPress Default Theme
+Lightning
+Lightning Child Theme
+```
+
+で確認。
+
+---
+
+# 223. QA：Plugins
+
+最低限：
+
+```text
+CNI Blocks OFF
+CNI Blocks ON
+
+Otter OFF
+Otter ON
+```
+
+Plugin Fatalを起こさない。
+
+---
+
+# 224. Development Phase 1
+
+Core Foundation：
+
+```text
+Plugin Bootstrap
+Settings
+Assets
+Attributes
+Inspector
+Frontend Renderer
+Effect Registry
+```
+
+---
+
+# 225. Development Phase 2
+
+Motion Engine：
+
+```text
+Fade
+Directional Fade
+Slide
+Zoom
+Blur
+Observer
+Site Ready
+Speed
+Delay
+Offset
+```
+
+---
+
+# 226. Development Phase 3
+
+Advanced Entrance / Emphasis：
+
+```text
+Bounce
+Flip
+Swing
+Tada
+Jello
+Pulse
+Rubber Band
+Wobble
+Shake
+Hover
+```
+
+---
+
+# 227. Development Phase 4
+
+Reveal：
+
+```text
+Clip Reveal
+Mask Reveal
+Block Compatibility
+```
+
+---
+
+# 228. Development Phase 5
+
+Stagger：
+
+```text
+Group
+Columns
+Child Override
+Mobile
+```
+
+---
+
+# 229. Development Phase 6
+
+Loader Core：
+
+```text
+Settings
+Frequency
+Storage
+Content
+Classic Split
+Fade
+Wipe
+Site Ready
+Fail Safe
+```
+
+---
+
+# 230. Development Phase 7
+
+Loader Extended：
+
+```text
+Split Vertical
+Circle Reveal
+Line
+Dots
+Preview
+Reset
+```
+
+---
+
+# 231. Development Phase 8
+
+CNI Integration：
+
+```text
+CNI Blocks detection
+Adapters
+Stagger
+Reveal compatibility
+```
+
+---
+
+# 232. Development Phase 9
+
+QA / Stabilization：
+
+```text
+Performance
+Accessibility
+Theme compatibility
+Mobile
+Failure testing
+```
+
+---
+
+# 233. Codex実装時の作業ルール
+
+一度に全機能を巨大な単一ファイルへ実装しない。
+
+Phase単位で実装する。
+
+各Phase完了時に、
+
+```text
+変更ファイル
+実装内容
+Known Issues
+次Phase
+```
+
+を報告する。
+
+---
+
+# 234. Codexは既存ファイルを最初に調査する
+
+もし `cni-motion` ディレクトリが既に存在する場合、
+
+```text
+構成確認
+↓
+既存コード確認
+↓
+本仕様とのConflict確認
+↓
+実装
+```
+
+とする。
+
+ユーザーの明示許可なく他Pluginへ変更を入れない。
+
+---
+
+# 235. CNI Blocks変更禁止
+
+CNI Blocksとの連携が必要な場合でも、
+
+原則：
+
+```text
+cni-motion側のintegration
+```
+
+で対応する。
+
+CNI Blocks本体を変更する必要が生じた場合は勝手に変更せず報告する。
+
+---
+
+# 236. Lightning変更禁止
+
+Lightning Child ThemeへCNI Motion用CSS/JSを書かない。
+
+CNI Motion内で完結させる。
+
+---
+
+# 237. Simple Custom CSS and JS依存禁止
+
+CNI Motionが動作するために、
+
+```text
+Simple Custom CSS and JS
+```
+
+のコードを必要としないこと。
+
+---
+
+# 238. Old Code不要
+
+開発開始時に旧CSS / JavaScriptを要求しない。
+
+本仕様書の数値・挙動を基準に実装する。
+
+旧コードは必要になった場合のみQA比較資料として使用する。
+
+---
+
+# 239. 旧挙動の重要参考値
+
+コードそのものではなく以下のみ仕様値として維持する。
+
+### Classic Slide
+
+```text
+Direction Motion
+20px前後
+600ms
+```
+
+ただしCNI標準Fade Directionは16pxへ改善する。
+
+### Blur Zoom旧挙動
+
+```text
+Blur 5px
+Scale 1.2
+800ms
+```
+
+CNI標準はScale 1.12。
+
+Strong設定で1.2を再現可能。
+
+### Classic Loader
+
+```text
+Logo Hold      700ms
+Logo Fade      400ms
+Split          500ms
+White BG
+```
+
+---
+
+# 240. Acceptance Criteria
+
+CNI Motion v1.0は以下を満たした場合に完成とする。
+
+### A
+
+Simple Custom CSS and JSへFade / Slide / Blur Zoom / Loaderコードを書かなくても同等用途を実現できる。
+
+### B
+
+Otterをアニメーション目的だけで使用していた主要用途、
+
+```text
+Fade
+Bounce
+Zoom
+Flip
+Jello
+Tada
+Swing
+Delay
+Speed
+Hover
+Offset
+Replay
+```
+
+をCNI Motionで代替できる。
+
+### C
+
+HeroがLoader裏で先にアニメーション終了しない。
+
+### D
+
+Loaderの表示頻度を、
+
+```text
+毎回
+セッション1回
+初回訪問のみ
+```
+
+から選択できる。
+
+### E
+
+ロゴがなくても、
+
+```text
+Site Title
+Custom Text
+Line
+Dots
+None
+```
+
+でLoaderが成立する。
+
+### F
+
+JSが壊れても本文が読める。
+
+### G
+
+Loaderが壊れてもサイトへ入れる。
+
+### H
+
+Mobile Delayを簡単に無効化できる。
+
+### I
+
+Group等で子要素をStagger表示できる。
+
+### J
+
+Reduced Motionを尊重する。
+
+---
+
+# 241. CNI Motionの最終コンセプト
+
+CNI Motionは「Animationをたくさん持つPlugin」で終わらせない。
+
+目指すもの：
+
+> **制作現場で繰り返し使う“動き”を、コードを書かず、派手すぎず、サイトごとに細かく調整できるWordPress Motion System**
+
+とする。
+
+特に、
+
+```text
+Fade Inを使いやすく
+移動距離は控えめ
+SpeedとDelayは独立
+PresetとCustomを両立
+HeroとLoaderを正しく連携
+Revealを実用的に
+Staggerで連番Classを不要に
+Emphasis Motionも利用可能
+MobileとAccessibilityを最初から考慮
+```
+
+をCNI Motion固有の設計方針とする。
+
+---
+
+# 242. 最終優先順位
+
+実装判断に迷った場合は、以下の順番で優先する。
+
+```text
+1. コンテンツが確実に表示される
+2. WordPressを壊さない
+3. 操作が簡単
+4. 実制作で使いやすい
+5. Performance
+6. Accessibility
+7. 見た目の派手さ
+8. Effect数
+```
+
+Effect数を増やすために品質を落としてはならない。
+
+---
+
+# END
+
+**CNI Motion Development Specification v1.0 Complete**
+
+この文書をCNI Motion v1.0開発のMaster Specificationとする。

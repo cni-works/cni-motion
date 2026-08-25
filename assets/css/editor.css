@@ -1,0 +1,2 @@
+.cni-motion-replay{margin-top:12px;width:100%}
+.cni-admin-preview{align-items:center;background:#fff;display:flex;inset:0;justify-content:center;position:fixed;z-index:100000}.cni-admin-preview__content{font-size:40px;font-weight:700;letter-spacing:.08em;transition:opacity .4s,transform .4s}.cni-admin-preview.is-exiting{opacity:0;transition:opacity .5s}.cni-admin-preview.is-exiting .cni-admin-preview__content{opacity:0;transform:scale(.95)}
