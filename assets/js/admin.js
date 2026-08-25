@@ -40,26 +40,17 @@
 
 		function contentNode(type) {
 			var node;
-			if (type === 'site-logo' && config.siteLogoUrl) {
-				node = document.createElement('div');
-				node.className = 'cni-loader__logo';
-				var logo = document.createElement('img');
-				logo.src = config.siteLogoUrl;
-				logo.alt = '';
-				node.appendChild(logo);
-				return node;
-			}
-			if (type === 'site-logo' || type === 'site-title') {
+			if (type === 'site-title') {
 				if (!config.siteTitle) return null;
 				node = document.createElement('p');
 				node.className = 'cni-loader__text cni-loader__site-title';
 				node.textContent = config.siteTitle;
 				return node;
 			}
-			if (type === 'custom-image') {
+			if (type === 'site-logo' || type === 'custom-image') {
 				var preview = document.getElementById('cni-image-preview');
 				var imageUrl = config.customImageUrl || (preview ? preview.getAttribute('src') : '');
-				if (!imageUrl) return null;
+				if (!imageUrl) return contentNode('site-title');
 				node = document.createElement('img');
 				node.className = 'cni-loader__image';
 				node.src = imageUrl;
@@ -118,7 +109,7 @@
 			});
 			var content = document.createElement('div');
 			content.className = 'cni-loader__content';
-			var inner = contentNode(value('contentType', 'site-logo'));
+			var inner = contentNode(value('contentType', 'custom-image'));
 			if (inner) content.appendChild(inner);
 			loader.appendChild(content);
 			var close = document.createElement('button');

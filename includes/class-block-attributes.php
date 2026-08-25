@@ -108,7 +108,16 @@ final class Block_Attributes {
 			$p->set_attribute( 'data-cni-mobile', ! empty( $a['cniMotionMobile'] ) ? 'true' : 'false' );
 			$p->set_attribute( 'data-cni-mobile-delay', ! empty( $a['cniMotionMobileDelay'] ) ? 'true' : 'false' );
 			$p->set_attribute( 'data-cni-mask-color', sanitize_hex_color( $a['cniMotionMaskColor'] ?? '' ) ?: '#ffffff' );
-			$p->set_attribute( 'data-cni-intensity', 'strong' === ( $a['cniMotionIntensity'] ?? '' ) && ! empty( $effect['supports']['intensity'] ) ? 'strong' : 'standard' );
+			$intensity = sanitize_key( $a['cniMotionIntensity'] ?? 'standard' );
+			$intensity_type = $effect['supports']['intensity'] ?? false;
+			if ( 'zoom' === $intensity_type ) {
+				$intensity = in_array( $intensity, array( 'standard', 'strong', 'dynamic' ), true ) ? $intensity : 'standard';
+			} elseif ( 'blur-zoom' === $intensity_type ) {
+				$intensity = in_array( $intensity, array( 'standard', 'strong' ), true ) ? $intensity : 'standard';
+			} else {
+				$intensity = 'standard';
+			}
+			$p->set_attribute( 'data-cni-intensity', $intensity );
 		}
 
 		if ( $stagger_enabled ) {
@@ -117,6 +126,7 @@ final class Block_Attributes {
 			if ( ! $stagger_effect || 'entrance' !== $stagger_effect['category'] ) $stagger_slug = 'fade-up';
 			$p->set_attribute( 'data-cni-stagger', $stagger_slug );
 			$p->set_attribute( 'data-cni-stagger-interval', (string) self::number( $a['cniMotionStaggerInterval'] ?? 150, 0, 2000, 150 ) );
+			$p->set_attribute( 'data-cni-stagger-mobile', ! empty( $a['cniMotionMobileDelay'] ) ? 'true' : 'false' );
 		}
 
 		return $p->get_updated_html();

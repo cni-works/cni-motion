@@ -18,6 +18,39 @@
 		return Math.max(min, Math.min(max, parsed));
 	}
 
+	function clearBootstrapCover(root) {
+		if (typeof window.cniMotionClearBootstrapCover === 'function') window.cniMotionClearBootstrapCover();
+		else if (root) root.classList.remove('cni-loader-booting');
+	}
+
+	function clearBootstrapFailSafes() {
+		if (window.cniMotionEarlyCoverFailSafe) window.clearTimeout(window.cniMotionEarlyCoverFailSafe);
+		if (window.cniMotionFailSafe && window.cniMotionFailSafe !== window.cniMotionEarlyCoverFailSafe) window.clearTimeout(window.cniMotionFailSafe);
+		window.cniMotionEarlyCoverFailSafe = null;
+		window.cniMotionFailSafe = null;
+	}
+
+	function handoffBootstrapCover(root, loader) {
+		if (!root || !root.classList.contains('cni-loader-booting')) return;
+		/* Transfer responsibility only after the active loader covers the viewport. */
+		void loader.offsetWidth;
+		window.requestAnimationFrame(function () {
+			var doc = root.ownerDocument || document;
+			var view = doc.defaultView || window;
+			var style = view.getComputedStyle(loader);
+			var rect = loader.getBoundingClientRect();
+			var viewportWidth = doc.documentElement.clientWidth || view.innerWidth;
+			var viewportHeight = doc.documentElement.clientHeight || view.innerHeight;
+			var lockState = root.cniLoaderScrollLock;
+			var scrollbarWidth = lockState && Number.isFinite(lockState.scrollbarWidth) ? lockState.scrollbarWidth : 0;
+			var expectedWidth = Math.max(1, viewportWidth - scrollbarWidth);
+			var horizontallyCovered = rect.width + 1 >= expectedWidth && Math.abs(rect.left) <= scrollbarWidth + 1 && rect.right + scrollbarWidth + 1 >= viewportWidth;
+			if (!loader.classList.contains('cni-loader--active') || style.display === 'none' || style.visibility === 'hidden' || style.position !== 'fixed' || !horizontallyCovered || rect.top > 0 || rect.bottom + 1 < viewportHeight) return;
+			clearBootstrapFailSafes();
+			clearBootstrapCover(root);
+		});
+	}
+
 	function lockScroll(root) {
 		if (!root || root.cniLoaderScrollLock) return;
 		var doc = root.ownerDocument || document;
@@ -27,6 +60,7 @@
 		var state = {
 			hadClass: root.classList.contains('cni-loader-lock'),
 			hadStableClass: root.classList.contains('cni-loader-scrollbar-stable'),
+			scrollbarWidth: scrollbarWidth,
 			paddingRight: root.style.getPropertyValue('padding-right'),
 			paddingRightPriority: root.style.getPropertyPriority('padding-right')
 		};
@@ -99,6 +133,8 @@
 
 		function rootCleanup() {
 			if (!manageRoot) return;
+			clearBootstrapFailSafes();
+			clearBootstrapCover(root);
 			unlockScroll(root);
 			root.classList.remove('cni-loader-js-ready', 'cni-loader-skip');
 		}
@@ -140,9 +176,11 @@
 		function contentExit(exitDuration, revealDuration) {
 			if (finished || !setState('content-exit')) return;
 			emit('cni:loader-content-exit');
-			loader.classList.remove('cni-loader--content-ready');
-			if (loader.dataset.cniLoaderExit === 'none') { reveal(revealDuration); return; }
+			if (loader.dataset.cniLoaderExit === 'none') { loader.classList.remove('cni-loader--content-ready'); reveal(revealDuration); return; }
 			loader.classList.add('cni-loader--content-exit');
+			/* Establish the visible start state with transitions enabled first. */
+			void loader.offsetWidth;
+			loader.classList.remove('cni-loader--content-ready');
 			schedule(function () { reveal(revealDuration); }, exitDuration);
 		}
 
@@ -189,6 +227,7 @@
 
 			var ready = readyGate(maxWait);
 			schedule(function () { finish('safety-timeout'); }, enterDuration + holdDuration + maxWait + exitDuration + revealDuration + 1500);
+			if (manageRoot) handoffBootstrapCover(root, loader);
 			wait(enterDuration).then(function () {
 				if (finished || !setState('waiting')) return Promise.reject('finished');
 				loader.classList.add('cni-loader--content-ready');

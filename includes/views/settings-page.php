@@ -34,7 +34,7 @@ $loader_selects = array(
 	),
 	'contentType' => array(
 		'label' => __( 'コンテンツ', 'cni-motion' ),
-		'options' => array( 'site-logo' => __( 'サイトロゴ', 'cni-motion' ), 'custom-image' => __( 'カスタム画像', 'cni-motion' ), 'site-title' => __( 'サイトタイトル', 'cni-motion' ), 'custom-text' => __( 'カスタムテキスト', 'cni-motion' ), 'line' => __( 'ライン', 'cni-motion' ), 'dots' => __( 'ドット', 'cni-motion' ), 'none' => __( 'なし', 'cni-motion' ) ),
+		'options' => array( 'custom-image' => __( 'ロゴ画像', 'cni-motion' ), 'site-title' => __( 'サイトタイトル', 'cni-motion' ), 'custom-text' => __( 'カスタムテキスト', 'cni-motion' ), 'line' => __( 'ライン', 'cni-motion' ), 'dots' => __( 'ドット', 'cni-motion' ), 'none' => __( 'なし', 'cni-motion' ) ),
 	),
 	'contentEnter' => array(
 		'label' => __( 'Enter', 'cni-motion' ),
@@ -61,8 +61,8 @@ $number_fields = array(
 	'contentExitDuration' => array( __( 'Exit時間 (ms)', 'cni-motion' ), 100, 5000, 100 ),
 	'siteRevealDuration' => array( __( 'Reveal時間 (ms)', 'cni-motion' ), 100, 5000, 100 ),
 	'maxWait' => array( __( '最大待機 (ms)', 'cni-motion' ), 500, 10000, 100 ),
-	'logoDesktopWidth' => array( __( 'ロゴPC幅 (px)', 'cni-motion' ), 50, 800, 10 ),
-	'logoMobileWidth' => array( __( 'ロゴSP幅 (px)', 'cni-motion' ), 50, 800, 10 ),
+	'logoDesktopWidth' => array( __( '画像PC幅 (px)', 'cni-motion' ), 50, 800, 10 ),
+	'logoMobileWidth' => array( __( '画像SP幅 (px)', 'cni-motion' ), 50, 800, 10 ),
 );
 ?>
 <div class="wrap">
@@ -73,7 +73,7 @@ $number_fields = array(
 		<table class="form-table">
 			<tr><th><?php esc_html_e( 'CNI Motion全体', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[general][enabled]" value="1" <?php checked( $field( 'general.enabled' ) ); ?>> <?php esc_html_e( '有効化', 'cni-motion' ); ?></label></td></tr>
 			<tr><th><?php esc_html_e( 'Reduced Motion対応', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[general][reducedMotion]" value="1" <?php checked( $field( 'general.reducedMotion' ) ); ?>> <?php esc_html_e( 'OS設定を尊重する', 'cni-motion' ); ?></label></td></tr>
-			<tr><th><?php esc_html_e( 'モバイルの初期値', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[defaults][mobileMotion]" value="1" <?php checked( $field( 'defaults.mobileMotion' ) ); ?>> <?php esc_html_e( 'Motionを有効', 'cni-motion' ); ?></label><br><label><input type="checkbox" name="cni_motion_settings[defaults][mobileDelay]" value="1" <?php checked( $field( 'defaults.mobileDelay' ) ); ?>> <?php esc_html_e( '遅延を有効', 'cni-motion' ); ?></label></td></tr>
+			<tr><th><?php esc_html_e( 'モバイルの初期値', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[defaults][mobileMotion]" value="1" <?php checked( $field( 'defaults.mobileMotion' ) ); ?>> <?php esc_html_e( 'Motionを有効', 'cni-motion' ); ?></label><br><label><input type="checkbox" name="cni_motion_settings[defaults][mobileDelay]" value="1" <?php checked( $field( 'defaults.mobileDelay' ) ); ?>> <?php esc_html_e( 'Staggerをスマホでも順番に表示', 'cni-motion' ); ?></label></td></tr>
 			<tr><th><?php esc_html_e( 'モバイルの境界幅', 'cni-motion' ); ?></th><td><input type="number" min="480" max="1200" name="cni_motion_settings[defaults][breakpoint]" value="<?php echo esc_attr( $field( 'defaults.breakpoint' ) ); ?>"> <?php esc_html_e( 'px', 'cni-motion' ); ?></td></tr>
 			<tr><th><?php esc_html_e( 'アンインストール', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[general][deleteOnUninstall]" value="1" <?php checked( $field( 'general.deleteOnUninstall' ) ); ?>> <?php esc_html_e( '設定を削除する', 'cni-motion' ); ?></label></td></tr>
 		</table>
@@ -110,7 +110,7 @@ $number_fields = array(
 				<label><?php esc_html_e( '文字間隔', 'cni-motion' ); ?> <input type="number" min="-0.1" max="1" step="0.01" name="cni_motion_settings[loader][siteTitleLetterSpacing]" value="<?php echo esc_attr( $field( 'loader.siteTitleLetterSpacing' ) ); ?>"> <?php esc_html_e( 'em', 'cni-motion' ); ?></label><br>
 				<label><?php esc_html_e( '文字色', 'cni-motion' ); ?> <input class="cni-color" type="color" name="cni_motion_settings[loader][siteTitleTextColor]" value="<?php echo esc_attr( $field( 'loader.siteTitleTextColor' ) ); ?>"></label>
 			</td></tr>
-			<tr><th><?php esc_html_e( 'カスタム画像', 'cni-motion' ); ?></th><td><input id="cni-custom-image-id" type="hidden" name="cni_motion_settings[loader][customImageId]" value="<?php echo esc_attr( $field( 'loader.customImageId' ) ); ?>"><button type="button" class="button" id="cni-select-image"><?php esc_html_e( '画像を選択', 'cni-motion' ); ?></button><?php $preview = wp_get_attachment_image_url( absint( $field( 'loader.customImageId' ) ), 'medium' ); ?><img id="cni-image-preview" src="<?php echo esc_url( $preview ?: '' ); ?>" alt="" <?php echo $preview ? '' : 'style="display:none"'; ?>></td></tr>
+			<tr><th><?php esc_html_e( 'ロゴ画像', 'cni-motion' ); ?></th><td><input id="cni-custom-image-id" type="hidden" name="cni_motion_settings[loader][customImageId]" value="<?php echo esc_attr( $field( 'loader.customImageId' ) ); ?>"><button type="button" class="button" id="cni-select-image"><?php esc_html_e( 'ロゴ画像を選択', 'cni-motion' ); ?></button><?php $preview = wp_get_attachment_image_url( absint( $field( 'loader.customImageId' ) ), 'medium' ); ?><img id="cni-image-preview" src="<?php echo esc_url( $preview ?: '' ); ?>" alt="" <?php echo $preview ? '' : 'style="display:none"'; ?>><p class="description"><?php esc_html_e( 'テーマのロゴ設定とは連動せず、ここで選択した画像をLoaderへ表示します。', 'cni-motion' ); ?></p></td></tr>
 			<tr><th><?php esc_html_e( 'カスタムテキスト', 'cni-motion' ); ?></th><td><input class="regular-text" type="text" name="cni_motion_settings[loader][customText]" value="<?php echo esc_attr( $field( 'loader.customText' ) ); ?>"></td></tr>
 			<tr><th><?php esc_html_e( '背景色', 'cni-motion' ); ?></th><td><input class="cni-color" type="color" name="cni_motion_settings[loader][backgroundColor]" value="<?php echo esc_attr( $field( 'loader.backgroundColor' ) ); ?>"></td></tr>
 			<tr><th><?php esc_html_e( '管理者', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[loader][skipAdmin]" value="1" <?php checked( $field( 'loader.skipAdmin' ) ); ?>> <?php esc_html_e( '表示しない', 'cni-motion' ); ?></label></td></tr>

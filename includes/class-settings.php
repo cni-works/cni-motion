@@ -26,7 +26,7 @@ final class Settings {
 
 	public static function loader_presets(): array {
 		$base = array(
-			'contentType' => 'site-logo', 'logoDesktopWidth' => 300, 'logoMobileWidth' => 180,
+			'contentType' => 'custom-image', 'logoDesktopWidth' => 300, 'logoMobileWidth' => 180,
 			'contentEnterDuration' => 400, 'holdDuration' => 700,
 			'contentExit' => 'fade-out', 'contentExitDuration' => 400,
 			'backgroundColor' => '#ffffff', 'siteRevealDuration' => 500,
@@ -41,7 +41,10 @@ final class Settings {
 
 	public static function get(): array {
 		$value = get_option( self::OPTION, array() );
-		return array_replace_recursive( self::defaults(), is_array( $value ) ? $value : array() );
+		$settings = array_replace_recursive( self::defaults(), is_array( $value ) ? $value : array() );
+		/* Legacy Site Logo settings now use the plugin-selected image. */
+		if ( 'site-logo' === $settings['loader']['contentType'] ) $settings['loader']['contentType'] = 'custom-image';
+		return $settings;
 	}
 
 	public static function register(): void {
@@ -53,6 +56,7 @@ final class Settings {
 		$general = isset( $input['general'] ) && is_array( $input['general'] ) ? $input['general'] : array();
 		$motion = isset( $input['defaults'] ) && is_array( $input['defaults'] ) ? $input['defaults'] : array();
 		$loader = isset( $input['loader'] ) && is_array( $input['loader'] ) ? $input['loader'] : array();
+		if ( 'site-logo' === ( $loader['contentType'] ?? '' ) || ! isset( $loader['contentType'] ) ) $loader['contentType'] = 'custom-image';
 		$pick = static fn( $value, array $allowed, $fallback ) => in_array( $value, $allowed, true ) ? $value : $fallback;
 		return array(
 			'schemaVersion' => self::SCHEMA_VERSION,

@@ -20,6 +20,16 @@
 		if (window.cniMotionSiteReadySent) return;
 		window.cniMotionSiteReadySent = true; root.classList.add('cni-site-ready'); event('cni:site-ready');
 	}
+	function clearLoaderBootstrapCover() {
+		if (typeof window.cniMotionClearBootstrapCover === 'function') window.cniMotionClearBootstrapCover();
+		else root.classList.remove('cni-loader-booting');
+	}
+	function clearLoaderBootstrapFailSafes() {
+		if (window.cniMotionEarlyCoverFailSafe) window.clearTimeout(window.cniMotionEarlyCoverFailSafe);
+		if (window.cniMotionFailSafe && window.cniMotionFailSafe !== window.cniMotionEarlyCoverFailSafe) window.clearTimeout(window.cniMotionFailSafe);
+		window.cniMotionEarlyCoverFailSafe = null;
+		window.cniMotionFailSafe = null;
+	}
 	function numberValue(value, fallback) { var parsed = parseInt(value, 10); return Number.isFinite(parsed) ? parsed : fallback; }
 	function category(el) { return el.dataset.cniCategory || (definitions[el.dataset.cniMotion] && definitions[el.dataset.cniMotion].category) || 'entrance'; }
 	function duration(el) { return Math.max(100, Math.min(5000, parseInt(el.dataset.cniDuration, 10) || 600)); }
@@ -108,9 +118,11 @@
 	function stagger(parent) {
 		var effect = parent.dataset.cniStagger, definition = definitions[effect] || definitions['fade-up'] || {defaultDuration:600,defaultDistance:16}, interval = numberValue(parent.dataset.cniStaggerInterval, 150);
 		var mobile = window.innerWidth <= (parseInt(config.breakpoint, 10) || 768);
+		var staggerOnMobile = parent.dataset.cniStaggerMobile === 'true';
+		var baseDelay = parseInt(parent.dataset.cniDelay, 10) || 0;
 		Array.prototype.forEach.call(parent.children, function (child, index) {
 			if (child.hasAttribute('data-cni-motion')) return;
-			child.classList.add('cni-motion'); child.dataset.cniMotion = effect; child.dataset.cniCategory = 'entrance'; child.dataset.cniTrigger = parent.dataset.cniTrigger || 'auto'; child.dataset.cniDuration = parent.dataset.cniDuration || String(definition.defaultDuration); child.dataset.cniDelay = String((parseInt(parent.dataset.cniDelay, 10) || 0) + (mobile && parent.dataset.cniMobileDelay !== 'true' ? 0 : index * interval)); child.dataset.cniDistance = definition.defaultDistance === null ? '16' : String(definition.defaultDistance); child.dataset.cniOffset = parent.dataset.cniOffset || '12'; child.dataset.cniOnce = parent.dataset.cniOnce || 'true'; child.dataset.cniMobile = parent.dataset.cniMobile || 'true'; child.dataset.cniMobileDelay = parent.dataset.cniMobileDelay || 'false';
+			child.classList.add('cni-motion'); child.dataset.cniMotion = effect; child.dataset.cniCategory = 'entrance'; child.dataset.cniTrigger = parent.dataset.cniTrigger || 'auto'; child.dataset.cniDuration = parent.dataset.cniDuration || String(definition.defaultDuration); child.dataset.cniDelay = String(baseDelay + (mobile && !staggerOnMobile ? 0 : index * interval)); child.dataset.cniDistance = definition.defaultDistance === null ? '16' : String(definition.defaultDistance); child.dataset.cniOffset = parent.dataset.cniOffset || '12'; child.dataset.cniOnce = parent.dataset.cniOnce || 'true'; child.dataset.cniMobile = parent.dataset.cniMobile || 'true'; child.dataset.cniMobileDelay = 'true';
 		});
 		parent.classList.remove('cni-motion'); parent.removeAttribute('data-cni-motion');
 	}
@@ -134,10 +146,13 @@
 	}
 	function start() {
 		try {
-			window.clearTimeout(window.cniMotionFailSafe); initMotion();
-			var loader = document.querySelector('.cni-loader'); if (loader) runLoader(loader); else requestAnimationFrame(function () { requestAnimationFrame(function () { root.classList.remove('cni-loader-lock', 'cni-loader-js-ready'); siteReady(); }); });
+			var loader = document.querySelector('.cni-loader');
+			if (loader && window.cniMotionLoaderBootstrapExpired) { loader.remove(); loader = null; }
+			if (!loader) { clearLoaderBootstrapFailSafes(); clearLoaderBootstrapCover(); root.classList.remove('cni-loader-lock', 'cni-loader-js-ready'); }
+			initMotion();
+			if (loader) runLoader(loader); else requestAnimationFrame(function () { requestAnimationFrame(siteReady); });
 		} catch (error) {
-			root.classList.remove('cni-motion-js','cni-loader-js-ready'); if (window.CNIMotionLoaderRuntime && typeof window.CNIMotionLoaderRuntime.unlockScroll === 'function') window.CNIMotionLoaderRuntime.unlockScroll(root); else root.classList.remove('cni-loader-lock'); var failedLoader=document.querySelector('.cni-loader'); if(failedLoader) failedLoader.remove(); siteReady();
+			clearLoaderBootstrapFailSafes(); clearLoaderBootstrapCover(); root.classList.remove('cni-motion-js','cni-loader-js-ready'); if (window.CNIMotionLoaderRuntime && typeof window.CNIMotionLoaderRuntime.unlockScroll === 'function') window.CNIMotionLoaderRuntime.unlockScroll(root); else root.classList.remove('cni-loader-lock'); var failedLoader=document.querySelector('.cni-loader'); if(failedLoader) failedLoader.remove(); siteReady();
 			if (window.console) console.error('CNI Motion:', error);
 		}
 	}

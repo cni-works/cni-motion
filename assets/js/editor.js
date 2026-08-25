@@ -52,6 +52,14 @@
 	function staggerOptions() {
 		return [{label:__('0.05秒','cni-motion'),value:'preset-50'},{label:__('0.1秒','cni-motion'),value:'preset-100'},{label:__('0.15秒','cni-motion'),value:'preset-150'},{label:__('0.2秒','cni-motion'),value:'preset-200'},{label:__('0.3秒','cni-motion'),value:'preset-300'},{label:__('0.4秒','cni-motion'),value:'preset-400'},{label:__('カスタム','cni-motion'),value:'custom'}];
 	}
+	function intensityOptions(definition) {
+		if (definition.supports.intensity === 'zoom') return [{label:__('控えめ (0.86)','cni-motion'),value:'standard'},{label:__('強め (0.65)','cni-motion'),value:'strong'},{label:__('ダイナミック (0.30・Otter風)','cni-motion'),value:'dynamic'}];
+		return [{label:__('標準 (1.12)','cni-motion'),value:'standard'},{label:__('Strong (1.20)','cni-motion'),value:'strong'}];
+	}
+	function resolvedIntensity(value, definition) {
+		var allowed = intensityOptions(definition).map(function (option) { return option.value; });
+		return allowed.indexOf(value) !== -1 ? value : 'standard';
+	}
 	function resolvedDuration(attributes, definition) { return attributes.cniMotionSpeedMode === 'recommended' ? definition.defaultDuration : attributes.cniMotionDuration; }
 	function resolvedEasing(attributes, definition) { return attributes.cniMotionEasing === 'recommended' ? definition.defaultEasing : attributes.cniMotionEasing; }
 	function resolvedDistance(attributes, definition) { return attributes.cniMotionDistanceMode === 'effect-default' && definition.defaultDistance !== null ? definition.defaultDistance : attributes.cniMotionDistance; }
@@ -99,7 +107,7 @@
 		var current = nodeWindow.getComputedStyle(node);
 		node.setAttribute('data-cni-motion', definition.slug);
 		node.setAttribute('data-cni-category', definition.category);
-		node.setAttribute('data-cni-intensity', a.cniMotionIntensity || 'standard');
+		node.setAttribute('data-cni-intensity', resolvedIntensity(a.cniMotionIntensity, definition));
 		node.style.setProperty('--cni-motion-duration', duration + 'ms');
 		node.style.setProperty('--cni-motion-delay', a.cniMotionDelay + 'ms');
 		node.style.setProperty('--cni-motion-distance', resolvedDistance(a, definition) + 'px');
@@ -135,7 +143,7 @@
 					if (a.cniMotionDistanceMode === 'effect-default' && next.defaultDistance !== null) updates.cniMotionDistance = next.defaultDistance;
 					if (next.triggers.indexOf(a.cniMotionTrigger) === -1) updates.cniMotionTrigger = 'auto';
 					if (next.category !== 'entrance') updates.cniMotionOnce = true;
-					if (!next.supports.intensity) updates.cniMotionIntensity = 'standard';
+					if (!next.supports.intensity || intensityOptions(next).map(function(option){return option.value;}).indexOf(a.cniMotionIntensity) === -1) updates.cniMotionIntensity = 'standard';
 					set(updates);
 				},key:'effect'}));
 				basicControls.push(el(SelectControl,{label:__('発火','cni-motion'),value:a.cniMotionTrigger,options:definition.triggers.map(function(trigger){return {label:triggerLabels[trigger],value:trigger};}),onChange:function(v){set({cniMotionTrigger:v});},key:'trigger'}));
@@ -150,12 +158,12 @@
 					detailControls.push(el(SelectControl,{label:__('移動距離','cni-motion'),value:distanceSelection,options:distanceOptions(definition),onChange:function(v){if(v === 'effect-default') set({cniMotionDistanceMode:'effect-default',cniMotionDistance:definition.defaultDistance}); else if(v === 'custom') set({cniMotionDistanceMode:'custom'}); else set({cniMotionDistanceMode:'preset',cniMotionDistance:parseInt(v.replace('preset-',''),10)});},key:'distance-mode'}));
 					if (distanceSelection === 'custom') detailControls.push(el(RangeControl,{label:__('カスタム距離 (px)','cni-motion'),value:a.cniMotionDistance,min:0,max:200,step:1,onChange:function(v){set({cniMotionDistanceMode:'custom',cniMotionDistance:v});},key:'distance-custom'}));
 				}
-				if (definition.supports.intensity) detailControls.push(el(SelectControl,{label:__('強さ','cni-motion'),value:a.cniMotionIntensity,options:[{label:__('標準 (1.12)','cni-motion'),value:'standard'},{label:__('Strong (1.20)','cni-motion'),value:'strong'}],onChange:function(v){set({cniMotionIntensity:v});},key:'intensity'}));
+				if (definition.supports.intensity) detailControls.push(el(SelectControl,{label:definition.supports.intensity === 'zoom' ? __('ズームの強さ','cni-motion') : __('強さ','cni-motion'),value:resolvedIntensity(a.cniMotionIntensity,definition),options:intensityOptions(definition),onChange:function(v){set({cniMotionIntensity:v});},key:'intensity'}));
 				if (definition.supports.maskColor) detailControls.push(el(TextControl,{label:__('マスク色','cni-motion'),type:'color',value:a.cniMotionMaskColor,onChange:function(v){set({cniMotionMaskColor:v});},key:'mask'}));
 				detailControls.push(el(SelectControl,{label:__('表示タイミング','cni-motion'),value:a.cniMotionTriggerOffsetMode,options:[{label:__('早め','cni-motion'),value:'early'},{label:__('標準','cni-motion'),value:'normal'},{label:__('遅め','cni-motion'),value:'late'},{label:__('カスタム','cni-motion'),value:'custom'}],onChange:function(v){set({cniMotionTriggerOffsetMode:v,cniMotionTriggerOffset:v === 'early' ? 0 : v === 'late' ? 25 : v === 'normal' ? 12 : a.cniMotionTriggerOffset});},key:'offset'}));
 				if (a.cniMotionTriggerOffsetMode === 'custom') detailControls.push(el(RangeControl,{label:__('画面内への入り具合 (%)','cni-motion'),value:a.cniMotionTriggerOffset,min:0,max:50,onChange:function(v){set({cniMotionTriggerOffset:v});},key:'offset-custom'}));
 				detailControls.push(el(SelectControl,{label:__('イージング','cni-motion'),value:a.cniMotionEasing,options:[{label:__('推奨','cni-motion'),value:'recommended'},{label:__('Ease Out','cni-motion'),value:'ease-out'},{label:__('Ease In Out','cni-motion'),value:'ease-in-out'},{label:__('Ease','cni-motion'),value:'ease'},{label:__('Linear','cni-motion'),value:'linear'}],onChange:function(v){set({cniMotionEasing:v});},key:'easing'}));
-				detailControls.push(el(ToggleControl,{label:__('モバイルでMotion','cni-motion'),checked:a.cniMotionMobile,onChange:function(v){set({cniMotionMobile:v});},key:'mobile'}),el(ToggleControl,{label:__('モバイルで遅延','cni-motion'),checked:a.cniMotionMobileDelay,onChange:function(v){set({cniMotionMobileDelay:v});},key:'mobile-delay'}));
+				detailControls.push(el(ToggleControl,{label:__('モバイルでMotion','cni-motion'),checked:a.cniMotionMobile,onChange:function(v){set({cniMotionMobile:v});},key:'mobile'}));
 				if (api.supportsStagger(props.name)) {
 					detailControls.push(el(ToggleControl,{label:__('子要素を順番に表示','cni-motion'),checked:a.cniMotionStagger,onChange:function(v){set({cniMotionStagger:v});},key:'stagger'}));
 					if (a.cniMotionStagger) {
@@ -164,6 +172,7 @@
 						var staggerSelection = optionValue(a.cniMotionStaggerIntervalMode,a.cniMotionStaggerInterval,staggerValues,'preset-');
 						detailControls.push(el(SelectControl,{label:__('間隔','cni-motion'),value:staggerSelection,options:staggerOptions(),onChange:function(v){if(v === 'custom') set({cniMotionStaggerIntervalMode:'custom'}); else set({cniMotionStaggerIntervalMode:'preset',cniMotionStaggerInterval:parseInt(v.replace('preset-',''),10)});},key:'stagger-interval-mode'}));
 						if (staggerSelection === 'custom') detailControls.push(el(RangeControl,{label:__('カスタム間隔 (ms)','cni-motion'),value:a.cniMotionStaggerInterval,min:0,max:2000,step:10,onChange:function(v){set({cniMotionStaggerIntervalMode:'custom',cniMotionStaggerInterval:v});},key:'stagger-interval-custom'}));
+						detailControls.push(el(ToggleControl,{label:__('スマホでも順番に表示','cni-motion'),help:a.cniMotionMobileDelay ? __('スマホでも設定した間隔で表示します。','cni-motion') : __('スマホでは間隔をなくして同時に表示します。','cni-motion'),checked:a.cniMotionMobileDelay,onChange:function(v){set({cniMotionMobileDelay:v});},key:'mobile-stagger'}));
 						detailControls.push(el('p',{className:'components-base-control__help',key:'stagger-order'},__('順序：通常','cni-motion')));
 						detailControls.push(el('p',{className:'components-base-control__help',key:'stagger-priority'},__('子ブロックに個別Motionがある場合は、その設定を優先します。','cni-motion')));
 					}

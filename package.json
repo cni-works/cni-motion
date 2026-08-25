@@ -1,8 +1,9 @@
 {
   "name": "cni-motion",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "scripts": {
-    "check:js": "node --check assets/js/bootstrap.js && node --check assets/js/registry.js && node --check assets/js/loader-runtime.js && node --check assets/js/frontend.js && node --check assets/js/editor.js && node --check assets/js/admin.js"
+    "check:js": "node --check assets/js/bootstrap.js && node --check assets/js/registry.js && node --check assets/js/loader-runtime.js && node --check assets/js/frontend.js && node --check assets/js/editor.js && node --check assets/js/admin.js",
+    "test:loader": "node --test tests/loader-failsafe.test.js"
   }
 }
