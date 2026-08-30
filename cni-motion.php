@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CNI Motion
  * Description: Gutenberg blocks, first-view motion, and a safe page loader managed from one place.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Requires at least: 6.7
  * Requires PHP: 8.0
  * Update URI: https://github.com/cni-works/cni-motion
@@ -14,7 +14,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CNI_MOTION_VERSION', '1.0.2' );
+define( 'CNI_MOTION_VERSION', '1.0.3' );
 define( 'CNI_MOTION_FILE', __FILE__ );
 define( 'CNI_MOTION_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CNI_MOTION_URL', plugin_dir_url( __FILE__ ) );

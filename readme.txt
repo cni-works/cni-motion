@@ -3,7 +3,7 @@ Contributors: cni
 Requires at least: 6.7
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,6 +18,12 @@ Effectごとの推奨値、Trigger、Once / Repeat、Mobile設定、Stagger、Ed
 3. 「設定 > CNI Motion」でPage Loaderを設定します。
 
 == Changelog ==
+= 1.0.3 =
+* Character Animation、Text Marquee、対応ブロック限定のParallaxを追加しました。
+* ブロック単位のVisibilityと安全にスコープされたCustom CSSを追加しました。
+* Custom CSSをGutenberg編集画面でリアルタイムに確認できるようにしました。
+* Otterの保存データやclassへ干渉せず共存できる独立実装としました。
+
 = 1.0.2 =
 * Page Loaderの初期表示、Fail Safe、画面遷移、Scrollbar復元を改善しました。
 * Loader画像をテーマに依存せず設定でき、Desktop / Mobile幅を反映するよう改善しました。

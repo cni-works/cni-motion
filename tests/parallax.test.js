@@ -1,0 +1,17 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const runtime = fs.readFileSync(path.join(root, 'assets/js/parallax.js'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'assets/css/motion.css'), 'utf8');
+const registry = fs.readFileSync(path.join(root, 'includes/class-parallax.php'), 'utf8');
+const integration = fs.readFileSync(path.join(root, 'integrations/cni-blocks.php'), 'utf8');
+const attributes = fs.readFileSync(path.join(root, 'includes/class-block-attributes.php'), 'utf8');
+const editor = fs.readFileSync(path.join(root, 'assets/js/editor.js'), 'utf8');
+const assets = fs.readFileSync(path.join(root, 'includes/class-assets.php'), 'utf8');
+test('allow list contains the approved three block types',()=>{const parallaxIntegration=integration.slice(integration.indexOf('public static function parallax_blocks'),integration.indexOf('public static function text_blocks'));assert.match(registry,/'core\/cover'/);assert.match(registry,/'core\/media-text'/);assert.match(parallaxIntegration,/'cni-blocks\/overlap-media'/);assert.doesNotMatch(registry+parallaxIntegration,/cni-blocks\/outer/);assert.doesNotMatch(registry+parallaxIntegration,/core\/image'/);});
+test('each block targets its image layer',()=>{assert.match(registry,/\.wp-block-cover__image-background/);assert.match(registry,/\.wp-block-media-text__media img/);assert.match(integration,/\.cni-overlap-media__image/);assert.match(runtime,/root\.querySelector\(selector\)/);assert.match(css,/\.cni-parallax__media/);});
+test('attributes, output and editor controls form a complete data path',()=>{for(const name of ['cniParallaxEnabled','cniParallaxStrength','cniParallaxDirection','cniParallaxMobile']){assert.match(attributes,new RegExp(name));assert.match(editor,new RegExp(name));}for(const attr of ['data-cni-parallax','data-cni-parallax-direction','data-cni-parallax-mobile','data-cni-parallax-selector'])assert.match(attributes,new RegExp(attr));assert.match(assets,/assets\/js\/parallax\.js/);});
+test('runtime is event driven, shared and safe',()=>{assert.equal((runtime.match(/new window\.IntersectionObserver/g)||[]).length,1);assert.equal((runtime.match(/new window\.ResizeObserver/g)||[]).length,1);assert.match(runtime,/addEventListener\('scroll'.*passive:true/);assert.match(runtime,/cni:site-ready/);assert.match(runtime,/prefers-reduced-motion: reduce/);assert.match(runtime,/style\.willChange=moving/);assert.doesNotMatch(runtime,/jQuery|\$\(/);});
+test('presets and overscan protection are present',()=>{assert.match(runtime,/subtle:\{distance:12,scale:1\.06\}/);assert.match(runtime,/standard:\{distance:24,scale:1\.10\}/);assert.match(runtime,/strong:\{distance:40,scale:1\.14\}/);assert.match(runtime,/safeDistance=Math\.min\(instance\.preset\.distance,overdraw\)/);assert.match(runtime,/Math\.min\(1\.32,desiredScale\)/);});

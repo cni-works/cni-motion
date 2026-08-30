@@ -5,6 +5,9 @@ defined( 'ABSPATH' ) || exit;
 
 require_once CNI_MOTION_DIR . 'includes/class-settings.php';
 require_once CNI_MOTION_DIR . 'includes/class-effect-registry.php';
+require_once CNI_MOTION_DIR . 'includes/class-text-motion-registry.php';
+require_once CNI_MOTION_DIR . 'includes/class-parallax.php';
+require_once CNI_MOTION_DIR . 'includes/class-block-tools.php';
 require_once CNI_MOTION_DIR . 'includes/class-block-attributes.php';
 require_once CNI_MOTION_DIR . 'includes/class-assets.php';
 require_once CNI_MOTION_DIR . 'includes/class-loader.php';

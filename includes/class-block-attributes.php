@@ -21,7 +21,15 @@ final class Block_Attributes {
 		$delay_mode = in_array( $delay, array( 0, 100, 200, 300, 400, 500, 600, 800, 1000 ), true ) ? 'preset' : 'custom';
 
 		return array(
+			'cniCustomCss' => array( 'type' => 'string', 'default' => '' ),
+			'cniCssId' => array( 'type' => 'string', 'default' => '' ),
+			'cniVisibility' => array( 'type' => 'string', 'default' => 'all' ),
+			'cniParallaxEnabled' => array( 'type' => 'boolean', 'default' => false ),
+			'cniParallaxStrength' => array( 'type' => 'string', 'default' => 'standard' ),
+			'cniParallaxDirection' => array( 'type' => 'string', 'default' => 'normal' ),
+			'cniParallaxMobile' => array( 'type' => 'boolean', 'default' => false ),
 			'cniMotionEnabled' => array( 'type' => 'boolean', 'default' => false ),
+			'cniMotionMode' => array( 'type' => 'string', 'default' => 'block' ),
 			'cniMotionEffect' => array( 'type' => 'string', 'default' => 'fade' ),
 			'cniMotionTrigger' => array( 'type' => 'string', 'default' => 'auto' ),
 			'cniMotionSpeedMode' => array( 'type' => 'string', 'default' => $global['speed'] ),
@@ -42,11 +50,23 @@ final class Block_Attributes {
 			'cniMotionStaggerInterval' => array( 'type' => 'number', 'default' => 150 ),
 			'cniMotionMaskColor' => array( 'type' => 'string', 'default' => '#ffffff' ),
 			'cniMotionIntensity' => array( 'type' => 'string', 'default' => 'standard' ),
+			'cniMotionTextEffect' => array( 'type' => 'string', 'default' => 'character-fade-up' ),
+			'cniMotionTextIntervalMode' => array( 'type' => 'string', 'default' => 'preset' ),
+			'cniMotionTextInterval' => array( 'type' => 'number', 'default' => 70 ),
+			'cniMotionTextDuration' => array( 'type' => 'number', 'default' => 600 ),
+			'cniMotionMarqueeDirection' => array( 'type' => 'string', 'default' => 'left' ),
+			'cniMotionMarqueeSpeedMode' => array( 'type' => 'string', 'default' => 'normal' ),
+			'cniMotionMarqueeSpeed' => array( 'type' => 'number', 'default' => 50 ),
+			'cniMotionMarqueeGapMode' => array( 'type' => 'string', 'default' => 'normal' ),
+			'cniMotionMarqueeGap' => array( 'type' => 'number', 'default' => 48 ),
+			'cniMotionMarqueeFade' => array( 'type' => 'boolean', 'default' => true ),
+			'cniMotionMarqueePauseHover' => array( 'type' => 'boolean', 'default' => true ),
+			'cniMotionMarqueeMobile' => array( 'type' => 'boolean', 'default' => true ),
 		);
 	}
 
 	public static function attributes( array $args, string $name ): array {
-		if ( ! self::supports( $name ) ) return $args;
+		if ( ! self::supports( $name ) && ! Parallax::supports_block( $name ) && ! Block_Tools::supports_custom_css( $name ) && ! Block_Tools::supports_visibility( $name ) ) return $args;
 		$args['attributes'] = array_merge( $args['attributes'] ?? array(), self::schema() );
 		return $args;
 	}
@@ -71,16 +91,66 @@ final class Block_Attributes {
 	public static function render( string $html, array $block ): string {
 		$a = $block['attrs'] ?? array();
 		$name = $block['blockName'] ?? '';
-		if ( empty( $a['cniMotionEnabled'] ) || ! self::supports( $name ) || ! class_exists( 'WP_HTML_Tag_Processor' ) ) return $html;
+		$settings = Settings::get();
+		$html = Block_Tools::apply_visibility( $html, $block, $settings );
+		if ( '' === $html ) return '';
+		if ( ! class_exists( 'WP_HTML_Tag_Processor' ) ) return $html;
+		$parallax = Parallax::block( $name );
+		if ( $parallax && self::boolean( $a['cniParallaxEnabled'] ?? false, false ) ) {
+			$p = new \WP_HTML_Tag_Processor( $html );
+			if ( $p->next_tag() ) {
+				$strength = sanitize_key( $a['cniParallaxStrength'] ?? 'standard' );
+				$direction = sanitize_key( $a['cniParallaxDirection'] ?? 'normal' );
+				$p->add_class( 'cni-parallax' );
+				$p->set_attribute( 'data-cni-parallax', in_array( $strength, array( 'subtle', 'standard', 'strong' ), true ) ? $strength : 'standard' );
+				$p->set_attribute( 'data-cni-parallax-direction', in_array( $direction, array( 'normal', 'reverse' ), true ) ? $direction : 'normal' );
+				$p->set_attribute( 'data-cni-parallax-mobile', self::boolean( $a['cniParallaxMobile'] ?? false, false ) ? 'true' : 'false' );
+				$p->set_attribute( 'data-cni-parallax-selector', $parallax['selector'] );
+				if ( ! empty( $parallax['container'] ) ) $p->set_attribute( 'data-cni-parallax-container', $parallax['container'] );
+				$html = $p->get_updated_html();
+			}
+		}
+		if ( empty( $a['cniMotionEnabled'] ) || ! self::supports( $name ) ) return Block_Tools::apply_custom_css( $html, $block, $settings );
+		$mode = sanitize_key( $a['cniMotionMode'] ?? 'block' );
+		if ( in_array( $mode, array( 'character', 'marquee' ), true ) ) {
+			if ( ! Text_Motion_Registry::supports_block( $name ) ) return Block_Tools::apply_custom_css( $html, $block, $settings );
+			$p = new \WP_HTML_Tag_Processor( $html );
+			if ( ! $p->next_tag() ) return Block_Tools::apply_custom_css( $html, $block, $settings );
+			$p->add_class( 'cni-text-motion' );
+			$p->set_attribute( 'data-cni-text-mode', $mode );
+			$p->set_attribute( 'data-cni-mobile', ! empty( $a['cniMotionMobile'] ) ? 'true' : 'false' );
+			if ( 'character' === $mode ) {
+				$effect_slug = sanitize_key( $a['cniMotionTextEffect'] ?? 'character-fade-up' );
+				$effect = Text_Motion_Registry::effect( $effect_slug ) ?? Text_Motion_Registry::effect( 'character-fade-up' );
+				$trigger = sanitize_key( $a['cniMotionTrigger'] ?? 'auto' );
+				if ( ! in_array( $trigger, $effect['triggers'], true ) ) $trigger = 'auto';
+				$p->set_attribute( 'data-cni-text-effect', $effect['slug'] );
+				$p->set_attribute( 'data-cni-trigger', $trigger );
+				$p->set_attribute( 'data-cni-text-duration', (string) self::number( $a['cniMotionTextDuration'] ?? $effect['defaultDuration'], 40, 5000, $effect['defaultDuration'] ) );
+				$p->set_attribute( 'data-cni-text-interval', (string) self::number( $a['cniMotionTextInterval'] ?? 70, 20, 500, 70 ) );
+				$p->set_attribute( 'data-cni-delay', (string) self::number( $a['cniMotionDelay'] ?? 0, 0, 10000, 0 ) );
+				$p->set_attribute( 'data-cni-offset', (string) self::number( $a['cniMotionTriggerOffset'] ?? 12, 0, 50, 12 ) );
+			} else {
+				$direction = sanitize_key( $a['cniMotionMarqueeDirection'] ?? 'left' );
+				$p->set_attribute( 'data-cni-marquee-direction', in_array( $direction, array( 'left', 'right' ), true ) ? $direction : 'left' );
+				$p->set_attribute( 'data-cni-marquee-speed', (string) self::number( $a['cniMotionMarqueeSpeed'] ?? 50, 10, 200, 50 ) );
+				$p->set_attribute( 'data-cni-marquee-gap', (string) self::number( $a['cniMotionMarqueeGap'] ?? 48, 0, 300, 48 ) );
+				$p->set_attribute( 'data-cni-marquee-fade', ! empty( $a['cniMotionMarqueeFade'] ) ? 'true' : 'false' );
+				$p->set_attribute( 'data-cni-marquee-pause-hover', ! empty( $a['cniMotionMarqueePauseHover'] ) ? 'true' : 'false' );
+				$p->set_attribute( 'data-cni-marquee-mobile', ! empty( $a['cniMotionMarqueeMobile'] ) ? 'true' : 'false' );
+			}
+			return Block_Tools::apply_custom_css( $p->get_updated_html(), $block, $settings );
+		}
+		if ( 'block' !== $mode ) return Block_Tools::apply_custom_css( $html, $block, $settings );
 
 		$effect_slug = sanitize_key( $a['cniMotionEffect'] ?? 'fade' );
 		$effect = Effect_Registry::effect( $effect_slug );
 		$effect_enabled = $effect && Effect_Registry::supports_effect( $name, $effect_slug );
 		$stagger_enabled = ! empty( $a['cniMotionStagger'] ) && Effect_Registry::supports_stagger( $name );
-		if ( ! $effect_enabled && ! $stagger_enabled ) return $html;
+		if ( ! $effect_enabled && ! $stagger_enabled ) return Block_Tools::apply_custom_css( $html, $block, $settings );
 
 		$p = new \WP_HTML_Tag_Processor( $html );
-		if ( ! $p->next_tag() ) return $html;
+		if ( ! $p->next_tag() ) return Block_Tools::apply_custom_css( $html, $block, $settings );
 
 		if ( $effect_enabled ) {
 			$trigger = sanitize_key( $a['cniMotionTrigger'] ?? 'auto' );
@@ -129,6 +199,6 @@ final class Block_Attributes {
 			$p->set_attribute( 'data-cni-stagger-mobile', ! empty( $a['cniMotionMobileDelay'] ) ? 'true' : 'false' );
 		}
 
-		return $p->get_updated_html();
+		return Block_Tools::apply_custom_css( $p->get_updated_html(), $block, $settings );
 	}
 }

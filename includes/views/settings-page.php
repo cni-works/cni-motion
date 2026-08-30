@@ -78,6 +78,12 @@ $number_fields = array(
 			<tr><th><?php esc_html_e( 'アンインストール', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[general][deleteOnUninstall]" value="1" <?php checked( $field( 'general.deleteOnUninstall' ) ); ?>> <?php esc_html_e( '設定を削除する', 'cni-motion' ); ?></label></td></tr>
 		</table>
 
+		<h2><?php esc_html_e( 'Block Tools', 'cni-motion' ); ?></h2>
+		<table class="form-table">
+			<tr><th><?php esc_html_e( 'Visibility', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[modules][visibility]" value="1" <?php checked( $field( 'modules.visibility' ) ); ?>> <?php esc_html_e( 'ブロックのログイン状態による表示条件を有効化', 'cni-motion' ); ?></label><p class="description"><?php esc_html_e( '表示制御であり、機密情報のアクセス制御や会員権限管理の代替ではありません。', 'cni-motion' ); ?></p></td></tr>
+			<tr><th><?php esc_html_e( 'Custom CSS', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[modules][customCss]" value="1" <?php checked( $field( 'modules.customCss' ) ); ?>> <?php esc_html_e( 'ブロック単位の安全なスコープCSSを有効化', 'cni-motion' ); ?></label><p class="description"><?php esc_html_e( '編集にはunfiltered_html権限が必要です。Otterの設定やclassは読み取り・変更しません。', 'cni-motion' ); ?></p></td></tr>
+		</table>
+
 		<h2><?php esc_html_e( 'Motion Defaults', 'cni-motion' ); ?></h2>
 		<table class="form-table">
 			<tr><th><?php esc_html_e( '標準速度', 'cni-motion' ); ?></th><td><select name="cni_motion_settings[defaults][speed]"><?php foreach ( $speed_options as $value => $label ) : ?><option value="<?php echo esc_attr( $value ); ?>" <?php selected( $field( 'defaults.speed' ), $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select></td></tr>

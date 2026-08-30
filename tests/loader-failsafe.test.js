@@ -84,11 +84,52 @@ test('Zoom In intensity supports CNI and dynamic Otter-like characters safely', 
 	assert.match(motionCss, /@keyframes cni-zoom-in-dynamic\{0%\{opacity:0;transform:scale\(\.3\)\}50%\{opacity:1\}100%/);
 });
 
+test('All Clip Reveal directions use explicit shared Frontend and Editor keyframes', () => {
+	for (const direction of ['left', 'right', 'up', 'down']) {
+		assert.match(motionCss, new RegExp(`data-cni-motion=clip-reveal-${direction}\\]\\.cni-motion--running\\{animation-name:cni-clip-reveal-${direction}\\}`));
+		assert.match(motionCss, new RegExp(`@keyframes cni-clip-reveal-${direction}\\{`));
+	}
+	assert.match(motionCss, /cni-motion-reduced-enabled\.cni-motion-js \[data-cni-motion\^=clip-reveal\]\.cni-motion--running\{animation-name:none!important/);
+	assert.match(frontendCode, /el\.addEventListener\('animationend', finish\)/);
+	assert.match(editorCode, /node\.addEventListener\('animationend', finish\)/);
+});
+
 test('Content exit enables transition before releasing the visible start state', () => {
 	const add = runtimeCode.indexOf("loader.classList.add('cni-loader--content-exit')");
 	const commit = runtimeCode.indexOf('void loader.offsetWidth', add);
 	const remove = runtimeCode.indexOf("loader.classList.remove('cni-loader--content-ready')", add);
 	assert.ok(add > -1 && commit > add && remove > commit);
+});
+
+test('Frontend waits for the full loader stylesheet before starting the runtime', () => {
+	assert.match(motionCss, /\.cni-loader\{--cni-loader-css-ready:1\}/);
+	assert.match(frontendCode, /getPropertyValue\('--cni-loader-css-ready'\)\.trim\(\) === '1'/);
+	const readiness = frontendCode.indexOf('function loaderStylesReady(loader)');
+	const retry = frontendCode.indexOf('window.requestAnimationFrame(startWhenStyled)', readiness);
+	const runtime = frontendCode.indexOf('window.CNIMotionLoaderRuntime.run(loader', readiness);
+	assert.ok(readiness > -1 && retry > readiness && runtime > retry);
+});
+
+test('Async optimized CSS cannot consume the Loader sequence before its styles arrive', () => {
+	const loader = loaderElement();
+	let cssReady = false;
+	let runtimeStarts = 0;
+	const env = environment({
+		loader,
+		computedStyle() {
+			return { getPropertyValue(name) { return name === '--cni-loader-css-ready' && cssReady ? '1' : ''; } };
+		},
+	});
+	env.context.CNIMotion = {};
+	env.context.CNIMotionRegistry = [];
+	env.context.CNIMotionLoaderRuntime = { run() { runtimeStarts++; } };
+	vm.runInNewContext(frontendCode, env.context);
+	assert.equal(runtimeStarts, 0, 'runtime must not start against missing async CSS');
+	env.raf.shift()();
+	assert.equal(runtimeStarts, 0);
+	cssReady = true;
+	env.raf.shift()();
+	assert.equal(runtimeStarts, 1, 'runtime starts as soon as the real loader CSS is applied');
 });
 
 function classes(initial = []) {
@@ -187,6 +228,7 @@ function runEarly(env, frequency = 'always') {
 function loaderElement() {
 	const classList = classes();
 	const properties = {};
+	const listeners = {};
 	const loader = {
 		classList,
 		dataset: {
@@ -198,11 +240,48 @@ function loaderElement() {
 		offsetWidth: 1280,
 		parentNode: { removeChild(node) { node.isConnected = false; } },
 		style: { setProperty(name, value) { properties[name] = value; } },
-		addEventListener() {}, removeEventListener() {}, remove() { loader.isConnected = false; },
+		addEventListener(name, fn) { (listeners[name] ||= []).push(fn); },
+		removeEventListener(name, fn) { if (listeners[name]) listeners[name] = listeners[name].filter((item) => item !== fn); },
+		dispatch(name, event) { (listeners[name] || []).slice().forEach((fn) => fn(event)); },
+		listeners,
+		remove() { loader.isConnected = false; },
 		getBoundingClientRect() { return { left: 0, top: 0, right: 1280, bottom: 720, width: 1280, height: 720 }; },
 	};
 	return loader;
 }
+
+test('Circle waits for its real pseudo-element transition before removing the Loader', async () => {
+	const loader = loaderElement();
+	loader.dataset.cniLoader = 'circle-reveal';
+	const env = environment({ loader });
+	vm.runInNewContext(runtimeCode, env.context);
+	const controller = env.context.CNIMotionLoaderRuntime.run(loader, { root: env.root, manageRoot: false, emitEvents: false });
+	const fireNextZeroTimer = () => {
+		const entry = Array.from(env.timer.pending.entries()).find((item) => item[1].delay === 0);
+		assert.ok(entry, 'expected a zero-duration sequence timer');
+		env.timer.fire(entry[0]);
+	};
+	fireNextZeroTimer();
+	await Promise.resolve(); await Promise.resolve();
+	fireNextZeroTimer();
+	await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+	assert.equal(controller.getState(), 'site-reveal');
+	assert.equal(loader.isConnected, true, 'fixed duration must not remove the Loader first');
+	loader.dispatch('transitionend', { target: loader, pseudoElement: '::before', propertyName: 'width' });
+	assert.equal(loader.isConnected, true, 'the final reveal frame must be painted before removal');
+	assert.ok(env.raf.length > 0);
+	env.raf.shift()();
+	assert.equal(loader.isConnected, false);
+	assert.equal(controller.getState(), 'site-ready');
+});
+
+test('All Loader reveal families use transition completion with a bounded fallback', () => {
+	assert.match(runtimeCode, /loader\.addEventListener\('transitionend', revealEndHandler\)/);
+	assert.match(runtimeCode, /effect === 'circle-reveal'.*event\.pseudoElement/);
+	assert.match(runtimeCode, /effect\.indexOf\('wipe-'\) === 0/);
+	assert.match(runtimeCode, /effect === 'split-horizontal'.*effect === 'split-vertical'/);
+	assert.match(runtimeCode, /revealDuration \+ Math\.max\(500, Math\.min\(1500, revealDuration\)\)/);
+});
 
 test('Stable scrollbar gutter does not keep the Early Cover above Site Reveal', () => {
 	const loader = loaderElement();
@@ -222,6 +301,52 @@ test('Stable scrollbar gutter does not keep the Early Cover above Site Reveal', 
 	env.root.clientWidth = 1280;
 	env.raf.shift()();
 	assert.equal(env.rootClasses.contains('cni-loader-booting'), false);
+});
+
+test('Scroll unlock keeps the stable gutter until the native scrollbar has returned', () => {
+	const env = environment();
+	env.context.CSS = { supports(property, value) { return property === 'scrollbar-gutter' && value === 'stable'; } };
+	env.context.innerWidth = 1280;
+	env.root.clientWidth = 1264;
+	vm.runInNewContext(runtimeCode, env.context);
+	env.context.CNIMotionLoaderRuntime.lockScroll(env.root);
+	assert.equal(env.rootClasses.contains('cni-loader-lock'), true);
+	assert.equal(env.rootClasses.contains('cni-loader-scrollbar-stable'), true);
+	env.context.CNIMotionLoaderRuntime.restoreScrollbar(env.root);
+	assert.equal(env.rootClasses.contains('cni-loader-lock'), false, 'scrolling must be enabled immediately');
+	assert.equal(env.root.cniLoaderScrollLock.scrollbarRestored, true, 'input guard remains active through Site Reveal');
+	assert.equal(env.rootClasses.contains('cni-loader-scrollbar-stable'), true, 'gutter remains while the native scrollbar settles');
+	env.raf.shift()();
+	assert.equal(env.rootClasses.contains('cni-loader-scrollbar-stable'), true);
+	env.raf.shift()();
+	assert.equal(env.rootClasses.contains('cni-loader-scrollbar-stable'), false);
+	assert.equal(env.root.cniLoaderScrollLockRelease, null);
+	env.context.CNIMotionLoaderRuntime.unlockScroll(env.root);
+	assert.equal(env.root.cniLoaderScrollLock, null);
+	assert.match(motionCss, /html\.cni-loader-scrollbar-stable\{scrollbar-gutter:stable\}/);
+});
+
+test('Site Reveal restores the native scrollbar before exposing the site', () => {
+	const reveal = runtimeCode.indexOf('function reveal(revealDuration)');
+	const restore = runtimeCode.indexOf('restoreScrollbar(root)', reveal);
+	const exiting = runtimeCode.indexOf("loader.classList.add('cni-loader--exiting')", reveal);
+	assert.ok(reveal > -1 && restore > reveal && exiting > restore);
+});
+
+test('A new preview lock safely takes over a pending stable-gutter release', () => {
+	const env = environment();
+	env.context.CSS = { supports() { return true; } };
+	env.context.innerWidth = 1280;
+	env.root.clientWidth = 1264;
+	vm.runInNewContext(runtimeCode, env.context);
+	env.context.CNIMotionLoaderRuntime.lockScroll(env.root);
+	env.context.CNIMotionLoaderRuntime.unlockScroll(env.root);
+	env.root.clientWidth = 1280;
+	env.context.CNIMotionLoaderRuntime.lockScroll(env.root);
+	env.context.CNIMotionLoaderRuntime.unlockScroll(env.root);
+	while (env.raf.length) env.raf.shift()();
+	assert.equal(env.rootClasses.contains('cni-loader-lock'), false);
+	assert.equal(env.rootClasses.contains('cni-loader-scrollbar-stable'), false);
 });
 
 test('Case A/C: Early inline alone releases the cover within ten seconds', () => {

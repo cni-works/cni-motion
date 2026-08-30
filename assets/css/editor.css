@@ -1,2 +1,3 @@
 .cni-motion-replay{margin-top:12px;width:100%}
+.cni-responsive-css-templates{border-top:1px solid #ddd;margin-top:16px;padding-top:12px}.cni-responsive-css-templates__title{font-weight:600;margin:0 0 8px}.cni-responsive-css-templates__buttons{display:flex;flex-wrap:wrap;gap:6px}.cni-responsive-css-templates__feedback{color:#008a20;font-weight:600}
 .cni-admin-preview{align-items:center;background:#fff;display:flex;inset:0;justify-content:center;position:fixed;z-index:100000}.cni-admin-preview__content{font-size:40px;font-weight:700;letter-spacing:.08em;transition:opacity .4s,transform .4s}.cni-admin-preview.is-exiting{opacity:0;transition:opacity .5s}.cni-admin-preview.is-exiting .cni-admin-preview__content{opacity:0;transform:scale(.95)}

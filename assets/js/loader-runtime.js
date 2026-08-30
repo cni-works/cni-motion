@@ -55,16 +55,43 @@
 		if (!root || root.cniLoaderScrollLock) return;
 		var doc = root.ownerDocument || document;
 		var view = doc.defaultView || window;
+		var pendingRelease = root.cniLoaderScrollLockRelease;
+		var inheritedStableClass = !!pendingRelease && !pendingRelease.hadStableClass && root.classList.contains('cni-loader-scrollbar-stable');
+		if (pendingRelease) {
+			pendingRelease.cancelled = true;
+			root.cniLoaderScrollLockRelease = null;
+		}
 		var supportsStableGutter = !!(view.CSS && typeof view.CSS.supports === 'function' && view.CSS.supports('scrollbar-gutter', 'stable'));
 		var scrollbarWidth = Math.max(0, view.innerWidth - doc.documentElement.clientWidth);
 		var state = {
+			doc: doc,
+			view: view,
 			hadClass: root.classList.contains('cni-loader-lock'),
-			hadStableClass: root.classList.contains('cni-loader-scrollbar-stable'),
+			hadStableClass: pendingRelease ? pendingRelease.hadStableClass : root.classList.contains('cni-loader-scrollbar-stable'),
+			addedStableClass: inheritedStableClass || (supportsStableGutter && scrollbarWidth > 0 && !(pendingRelease ? pendingRelease.hadStableClass : root.classList.contains('cni-loader-scrollbar-stable'))),
 			scrollbarWidth: scrollbarWidth,
 			paddingRight: root.style.getPropertyValue('padding-right'),
-			paddingRightPriority: root.style.getPropertyPriority('padding-right')
+			paddingRightPriority: root.style.getPropertyPriority('padding-right'),
+			scrollX: view.scrollX || view.pageXOffset || 0,
+			scrollY: view.scrollY || view.pageYOffset || 0,
+			scrollbarRestored: false
+		};
+		state.preventScroll = function (event) { if (event && event.cancelable) event.preventDefault(); };
+		state.preventScrollKey = function (event) {
+			if ([' ', 'Spacebar', 'PageUp', 'PageDown', 'End', 'Home', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].indexOf(event.key) !== -1) state.preventScroll(event);
+		};
+		state.holdScroll = function () {
+			var x = view.scrollX || view.pageXOffset || 0;
+			var y = view.scrollY || view.pageYOffset || 0;
+			if ((x !== state.scrollX || y !== state.scrollY) && typeof view.scrollTo === 'function') view.scrollTo(state.scrollX, state.scrollY);
 		};
 		root.cniLoaderScrollLock = state;
+		if (typeof view.addEventListener === 'function') {
+			view.addEventListener('wheel', state.preventScroll, { passive: false });
+			view.addEventListener('touchmove', state.preventScroll, { passive: false });
+			view.addEventListener('scroll', state.holdScroll, { passive: true });
+		}
+		if (typeof doc.addEventListener === 'function') doc.addEventListener('keydown', state.preventScrollKey, true);
 		if (supportsStableGutter && scrollbarWidth > 0) root.classList.add('cni-loader-scrollbar-stable');
 		if (!supportsStableGutter && scrollbarWidth > 0) {
 			var currentPadding = parseFloat(view.getComputedStyle(root).paddingRight) || 0;
@@ -73,13 +100,37 @@
 		root.classList.add('cni-loader-lock');
 	}
 
+	function restoreScrollbar(root) {
+		if (!root || !root.cniLoaderScrollLock || root.cniLoaderScrollLock.scrollbarRestored) return;
+		var state = root.cniLoaderScrollLock;
+		var view = state.view;
+		if (!state.hadClass) root.classList.remove('cni-loader-lock');
+		if (state.paddingRight) root.style.setProperty('padding-right', state.paddingRight, state.paddingRightPriority);
+		else root.style.removeProperty('padding-right');
+		state.scrollbarRestored = true;
+		if (state.addedStableClass) {
+			state.cancelled = false;
+			root.cniLoaderScrollLockRelease = state;
+			var releaseStableGutter = function () {
+				if (state.cancelled || root.cniLoaderScrollLockRelease !== state || (root.cniLoaderScrollLock && root.cniLoaderScrollLock !== state)) return;
+				root.classList.remove('cni-loader-scrollbar-stable');
+				root.cniLoaderScrollLockRelease = null;
+			};
+			if (typeof view.requestAnimationFrame === 'function') view.requestAnimationFrame(function () { view.requestAnimationFrame(releaseStableGutter); });
+			else releaseStableGutter();
+		}
+	}
+
 	function unlockScroll(root) {
 		if (!root || !root.cniLoaderScrollLock) return;
 		var state = root.cniLoaderScrollLock;
-		if (!state.hadClass) root.classList.remove('cni-loader-lock');
-		if (!state.hadStableClass) root.classList.remove('cni-loader-scrollbar-stable');
-		if (state.paddingRight) root.style.setProperty('padding-right', state.paddingRight, state.paddingRightPriority);
-		else root.style.removeProperty('padding-right');
+		restoreScrollbar(root);
+		if (typeof state.view.removeEventListener === 'function') {
+			state.view.removeEventListener('wheel', state.preventScroll);
+			state.view.removeEventListener('touchmove', state.preventScroll);
+			state.view.removeEventListener('scroll', state.holdScroll);
+		}
+		if (typeof state.doc.removeEventListener === 'function') state.doc.removeEventListener('keydown', state.preventScrollKey, true);
 		root.cniLoaderScrollLock = null;
 	}
 
@@ -98,6 +149,8 @@
 		var started = false;
 		var timers = [];
 		var loadHandler = null;
+		var revealEndHandler = null;
+		var revealFinishFrame = null;
 
 		function emit(name, detail) {
 			if (!emitEvents) return;
@@ -129,6 +182,9 @@
 			timers.forEach(function (timer) { window.clearTimeout(timer); });
 			timers = [];
 			if (loadHandler) { window.removeEventListener('load', loadHandler); loadHandler = null; }
+			if (revealEndHandler) { loader.removeEventListener('transitionend', revealEndHandler); revealEndHandler = null; }
+			if (revealFinishFrame && typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(revealFinishFrame);
+			revealFinishFrame = null;
 		}
 
 		function rootCleanup() {
@@ -166,11 +222,38 @@
 			});
 		}
 
+		function revealTransitionMatches(event) {
+			if (!event) return false;
+			if (reduced) return event.target === loader && event.propertyName === 'opacity';
+			var effect = loader.dataset.cniLoader || 'fade';
+			if (effect === 'circle-reveal') return event.target === loader && (!event.pseudoElement || event.pseudoElement === '::before') && (event.propertyName === 'width' || event.propertyName === 'height');
+			if (effect === 'fade') return event.target === loader && event.propertyName === 'opacity';
+			if (effect.indexOf('wipe-') === 0) return event.target === loader && event.propertyName === 'transform';
+			if (effect === 'split-horizontal' || effect === 'split-vertical') return event.target !== loader && event.target.parentNode === loader && event.target.classList && event.target.classList.contains('cni-loader__panel') && event.propertyName === 'transform';
+			return false;
+		}
+
 		function reveal(revealDuration) {
 			if (finished || !setState('site-reveal')) return;
+			if (manageRoot) restoreScrollbar(root);
+			var revealFinishQueued = false;
+			function finishReveal(reason) {
+				if (finished || revealFinishQueued) return;
+				revealFinishQueued = true;
+				if (revealEndHandler) { loader.removeEventListener('transitionend', revealEndHandler); revealEndHandler = null; }
+				var complete = function () { revealFinishFrame = null; finish(reason); };
+				if (typeof window.requestAnimationFrame === 'function') revealFinishFrame = window.requestAnimationFrame(complete);
+				else complete();
+			}
+			revealEndHandler = function (event) { if (revealTransitionMatches(event)) finishReveal('transition-complete'); };
+			loader.addEventListener('transitionend', revealEndHandler);
+			/* Commit the fully covered state before the reveal transition starts. */
+			void loader.offsetWidth;
 			loader.classList.add('cni-loader--exiting');
 			emit('cni:loader-reveal');
-			schedule(function () { finish('sequence-complete'); }, revealDuration);
+			if (revealDuration <= 0) { finishReveal('sequence-complete'); return; }
+			/* A bounded fallback preserves completion when a browser suppresses transitionend. */
+			schedule(function () { finishReveal('transition-fallback'); }, revealDuration + Math.max(500, Math.min(1500, revealDuration)));
 		}
 
 		function contentExit(exitDuration, revealDuration) {
@@ -244,5 +327,5 @@
 		return controller;
 	}
 
-	window.CNIMotionLoaderRuntime = { run: run, lockScroll: lockScroll, unlockScroll: unlockScroll };
+	window.CNIMotionLoaderRuntime = { run: run, lockScroll: lockScroll, restoreScrollbar: restoreScrollbar, unlockScroll: unlockScroll };
 }());

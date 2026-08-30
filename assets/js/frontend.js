@@ -140,9 +140,21 @@
 			watch(el, numberValue(el.dataset.cniOffset, 12), false);
 		}); event('cni:motion-ready');
 	}
+	function loaderStylesReady(loader) {
+		try { return getComputedStyle(loader).getPropertyValue('--cni-loader-css-ready').trim() === '1'; }
+		catch (error) { return false; }
+	}
 	function runLoader(loader) {
 		if (!window.CNIMotionLoaderRuntime || typeof window.CNIMotionLoaderRuntime.run !== 'function') throw new Error('Loader runtime unavailable');
-		window.CNIMotionLoaderRuntime.run(loader, { reduced: reduced, root: root, manageRoot: true, onComplete: siteReady });
+		if (loader.cniLoaderStyleWait) return;
+		loader.cniLoaderStyleWait = true;
+		function startWhenStyled() {
+			if (!loader.isConnected || window.cniMotionLoaderBootstrapExpired) { loader.cniLoaderStyleWait = false; return; }
+			if (!loaderStylesReady(loader)) { window.requestAnimationFrame(startWhenStyled); return; }
+			loader.cniLoaderStyleWait = false;
+			window.CNIMotionLoaderRuntime.run(loader, { reduced: reduced, root: root, manageRoot: true, onComplete: siteReady });
+		}
+		startWhenStyled();
 	}
 	function start() {
 		try {

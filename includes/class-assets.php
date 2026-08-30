@@ -56,13 +56,33 @@ JS,
 		}
 		wp_enqueue_script( 'cni-motion', CNI_MOTION_URL . 'assets/js/frontend.js', $dependencies, self::version( 'assets/js/frontend.js' ), true );
 		wp_add_inline_script( 'cni-motion', 'window.CNIMotion=' . wp_json_encode( array( 'breakpoint' => $s['defaults']['breakpoint'], 'reducedMotion' => $s['general']['reducedMotion'] ) ) . ';', 'before' );
+		wp_enqueue_script( 'cni-motion-text', CNI_MOTION_URL . 'assets/js/text-motion.js', array( 'cni-motion' ), self::version( 'assets/js/text-motion.js' ), true );
+		wp_add_inline_script( 'cni-motion-text', 'window.CNIMotionTextData=' . wp_json_encode( Text_Motion_Registry::client_data() ) . ';', 'before' );
+		wp_enqueue_script( 'cni-motion-parallax', CNI_MOTION_URL . 'assets/js/parallax.js', array( 'cni-motion' ), self::version( 'assets/js/parallax.js' ), true );
 	}
 	public static function editor(): void {
 		wp_enqueue_style( 'cni-motion', CNI_MOTION_URL . 'assets/css/motion.css', array(), self::version( 'assets/css/motion.css' ) );
 		wp_enqueue_style( 'cni-motion-editor', CNI_MOTION_URL . 'assets/css/editor.css', array( 'cni-motion' ), self::version( 'assets/css/editor.css' ) );
 		wp_enqueue_script( 'cni-motion-registry', CNI_MOTION_URL . 'assets/js/registry.js', array(), self::version( 'assets/js/registry.js' ), true );
-		wp_add_inline_script( 'cni-motion-registry', 'window.CNIMotionRegistryData=' . wp_json_encode( Effect_Registry::client_data() ) . ';window.CNIMotionEditorConfig=' . wp_json_encode( array( 'attributes' => Block_Attributes::schema() ) ) . ';', 'before' );
-		wp_enqueue_script( 'cni-motion-editor', CNI_MOTION_URL . 'assets/js/editor.js', array( 'cni-motion-registry','wp-blocks','wp-compose','wp-components','wp-element','wp-i18n','wp-block-editor','wp-hooks' ), self::version( 'assets/js/editor.js' ), true );
+		wp_add_inline_script(
+			'cni-motion-registry',
+			'window.CNIMotionRegistryData=' . wp_json_encode( Effect_Registry::client_data() )
+			. ';window.CNIMotionEditorConfig=' . wp_json_encode(
+				array(
+					'attributes'      => Block_Attributes::schema(),
+					'parallax'        => Parallax::client_data(),
+					'blockTools'      => Block_Tools::client_data(),
+					'modules'         => Settings::get()['modules'],
+					'canUseCustomCss' => current_user_can( 'unfiltered_html' ),
+				)
+			)
+			. ';',
+			'before'
+		);
+		wp_enqueue_script( 'cni-motion-text', CNI_MOTION_URL . 'assets/js/text-motion.js', array(), self::version( 'assets/js/text-motion.js' ), true );
+		wp_add_inline_script( 'cni-motion-text', 'window.CNIMotionTextData=' . wp_json_encode( Text_Motion_Registry::client_data() ) . ';window.CNIMotionTextEditor=true;', 'before' );
+		wp_enqueue_script( 'cni-motion-custom-css-preview', CNI_MOTION_URL . 'assets/js/custom-css-preview.js', array(), self::version( 'assets/js/custom-css-preview.js' ), true );
+		wp_enqueue_script( 'cni-motion-editor', CNI_MOTION_URL . 'assets/js/editor.js', array( 'cni-motion-registry','cni-motion-text','cni-motion-custom-css-preview','wp-blocks','wp-compose','wp-components','wp-element','wp-i18n','wp-block-editor','wp-data','wp-hooks' ), self::version( 'assets/js/editor.js' ), true );
 		wp_set_script_translations( 'cni-motion-editor', 'cni-motion', CNI_MOTION_DIR . 'languages' );
 	}
 	public static function admin( string $hook ): void {

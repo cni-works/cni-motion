@@ -6,6 +6,22 @@ final class CNI_Blocks_Integration {
 		// This function and its init hook are declared by the current CNI Blocks plugin.
 		if ( ! function_exists( 'cni_blocks_register_blocks' ) || false === has_action( 'init', 'cni_blocks_register_blocks' ) ) return;
 		add_filter( 'cni_motion_block_matrix', array( __CLASS__, 'block_matrix' ) );
+		add_filter( 'cni_motion_text_blocks', array( __CLASS__, 'text_blocks' ) );
+		add_filter( 'cni_motion_parallax_blocks', array( __CLASS__, 'parallax_blocks' ) );
+	}
+
+	public static function parallax_blocks( array $blocks ): array {
+		$blocks['cni-blocks/overlap-media'] = array(
+			'label'     => __( '画像重ねレイアウト+', 'cni-motion' ),
+			'selector'  => '.cni-overlap-media__image',
+			'container' => '.cni-overlap-media__media',
+		);
+		return $blocks;
+	}
+
+	public static function text_blocks( array $blocks ): array {
+		$blocks[] = 'cni-blocks/heading-plus';
+		return array_values( array_unique( $blocks ) );
 	}
 
 	public static function block_matrix( array $matrix ): array {
