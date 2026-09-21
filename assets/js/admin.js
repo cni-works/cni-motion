@@ -77,6 +77,23 @@
 			return null;
 		}
 
+		function contentLayoutNode(layout) {
+			if (layout === 'single') return contentNode(value('contentType', 'custom-image'));
+			var stack = document.createElement('div');
+			stack.className = 'cni-loader__stack';
+			var logo = contentNode('custom-image');
+			if (logo) stack.appendChild(logo);
+			if (layout === 'logo-text' || layout === 'logo-text-line') {
+				var text = contentNode('custom-text');
+				if (text) {
+					text.classList.add('cni-loader__site-title', 'cni-loader__brand-text');
+					stack.appendChild(text);
+				}
+			}
+			if (layout === 'logo-line' || layout === 'logo-text-line') stack.appendChild(contentNode('line'));
+			return stack;
+		}
+
 		function buildPreview() {
 			var loader = document.createElement('div');
 			loader.className = 'cni-loader cni-loader--preview';
@@ -92,6 +109,7 @@
 			loader.dataset.cniLoaderExitDuration = String(integer('contentExitDuration', 400));
 			loader.dataset.cniLoaderRevealDuration = String(integer('siteRevealDuration', 500));
 			loader.dataset.cniLoaderMaxWait = String(integer('maxWait', 3000));
+			loader.dataset.cniContentLayout = value('contentLayout', 'single');
 			loader.style.setProperty('--cni-loader-bg', value('backgroundColor', '#ffffff'));
 			loader.style.setProperty('--cni-logo-desktop', integer('logoDesktopWidth', 300) + 'px');
 			loader.style.setProperty('--cni-logo-mobile', integer('logoMobileWidth', 180) + 'px');
@@ -109,7 +127,7 @@
 			});
 			var content = document.createElement('div');
 			content.className = 'cni-loader__content';
-			var inner = contentNode(value('contentType', 'custom-image'));
+			var inner = contentLayoutNode(value('contentLayout', 'single'));
 			if (inner) content.appendChild(inner);
 			loader.appendChild(content);
 			var close = document.createElement('button');

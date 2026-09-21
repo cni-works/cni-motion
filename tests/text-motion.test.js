@@ -12,7 +12,8 @@ const registry = read('includes/class-text-motion-registry.php');
 const integration = read('integrations/cni-blocks.php');
 
 test('text motion registry contains only the five approved character effects', () => {
-	const slugs = [...registry.matchAll(/'slug'\s*=>\s*'([^']+)'/g)].map((match) => match[1]);
+	const effectSection = registry.slice(registry.indexOf('public static function effects'), registry.indexOf('public static function effect('));
+	const slugs = [...effectSection.matchAll(/'slug'\s*=>\s*'([^']+)'/g)].map((match) => match[1]);
 	assert.deepEqual(slugs, ['character-fade','character-fade-up','character-blur','character-bounce','typewriter']);
 });
 
@@ -39,6 +40,12 @@ test('marquee uses measured px-per-second duration and responsive/font remeasure
 	assert.match(runtime, /ResizeObserver/);
 	assert.match(runtime, /documentRef\.fonts\.ready/);
 	assert.match(runtime, /aria-hidden/);
+});
+
+test('server rendering preserves mobile defaults when Gutenberg omits default-valued attributes', () => {
+	assert.match(attributes, /cniMotionMobile'\] \?\? \$mobile_default, \$mobile_default/);
+	assert.match(attributes, /cniMotionMarqueeMobile'\] \?\? true, true/);
+	assert.doesNotMatch(attributes, /data-cni-marquee-mobile', ! empty/);
 });
 
 test('character Site Ready starts at Loader reveal and retains the final Site Ready fallback', () => {

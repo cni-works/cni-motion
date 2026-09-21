@@ -18,7 +18,7 @@ vm.runInNewContext(preview, previewContext);
 const compilePreview = previewContext.window.CNIMotionCustomCssPreviewAPI.compile;
 
 test('module schema defaults new features to off and advances settings schema', () => {
-	assert.match(settings, /SCHEMA_VERSION = 2/);
+	assert.match(settings, /SCHEMA_VERSION = 3/);
 	assert.match(settings, /'modules'\s*=>\s*array\( 'customCss' => false, 'visibility' => false \)/);
 	assert.match(settings, /'customCss' => ! empty\( \$modules\['customCss'\] \)/);
 	assert.match(settings, /'visibility' => ! empty\( \$modules\['visibility'\] \)/);

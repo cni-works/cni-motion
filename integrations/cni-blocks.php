@@ -7,6 +7,7 @@ final class CNI_Blocks_Integration {
 		if ( ! function_exists( 'cni_blocks_register_blocks' ) || false === has_action( 'init', 'cni_blocks_register_blocks' ) ) return;
 		add_filter( 'cni_motion_block_matrix', array( __CLASS__, 'block_matrix' ) );
 		add_filter( 'cni_motion_text_blocks', array( __CLASS__, 'text_blocks' ) );
+		add_filter( 'cni_motion_text_accent_blocks', array( __CLASS__, 'text_accent_blocks' ) );
 		add_filter( 'cni_motion_parallax_blocks', array( __CLASS__, 'parallax_blocks' ) );
 	}
 
@@ -20,6 +21,11 @@ final class CNI_Blocks_Integration {
 	}
 
 	public static function text_blocks( array $blocks ): array {
+		$blocks[] = 'cni-blocks/heading-plus';
+		return array_values( array_unique( $blocks ) );
+	}
+
+	public static function text_accent_blocks( array $blocks ): array {
 		$blocks[] = 'cni-blocks/heading-plus';
 		return array_values( array_unique( $blocks ) );
 	}

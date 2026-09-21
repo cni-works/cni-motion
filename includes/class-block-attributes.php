@@ -118,7 +118,8 @@ final class Block_Attributes {
 			if ( ! $p->next_tag() ) return Block_Tools::apply_custom_css( $html, $block, $settings );
 			$p->add_class( 'cni-text-motion' );
 			$p->set_attribute( 'data-cni-text-mode', $mode );
-			$p->set_attribute( 'data-cni-mobile', ! empty( $a['cniMotionMobile'] ) ? 'true' : 'false' );
+			$mobile_default = (bool) ( $settings['defaults']['mobileMotion'] ?? true );
+			$p->set_attribute( 'data-cni-mobile', self::boolean( $a['cniMotionMobile'] ?? $mobile_default, $mobile_default ) ? 'true' : 'false' );
 			if ( 'character' === $mode ) {
 				$effect_slug = sanitize_key( $a['cniMotionTextEffect'] ?? 'character-fade-up' );
 				$effect = Text_Motion_Registry::effect( $effect_slug ) ?? Text_Motion_Registry::effect( 'character-fade-up' );
@@ -137,7 +138,7 @@ final class Block_Attributes {
 				$p->set_attribute( 'data-cni-marquee-gap', (string) self::number( $a['cniMotionMarqueeGap'] ?? 48, 0, 300, 48 ) );
 				$p->set_attribute( 'data-cni-marquee-fade', ! empty( $a['cniMotionMarqueeFade'] ) ? 'true' : 'false' );
 				$p->set_attribute( 'data-cni-marquee-pause-hover', ! empty( $a['cniMotionMarqueePauseHover'] ) ? 'true' : 'false' );
-				$p->set_attribute( 'data-cni-marquee-mobile', ! empty( $a['cniMotionMarqueeMobile'] ) ? 'true' : 'false' );
+				$p->set_attribute( 'data-cni-marquee-mobile', self::boolean( $a['cniMotionMarqueeMobile'] ?? true, true ) ? 'true' : 'false' );
 			}
 			return Block_Tools::apply_custom_css( $p->get_updated_html(), $block, $settings );
 		}

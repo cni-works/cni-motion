@@ -1,11 +1,11 @@
 {
   "name": "cni-motion",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "private": true,
   "scripts": {
-		"check:js": "node --check assets/js/bootstrap.js && node --check assets/js/registry.js && node --check assets/js/loader-runtime.js && node --check assets/js/frontend.js && node --check assets/js/text-motion.js && node --check assets/js/parallax.js && node --check assets/js/custom-css-preview.js && node --check assets/js/editor.js && node --check assets/js/admin.js",
+		"check:js": "node --check assets/js/bootstrap.js && node --check assets/js/registry.js && node --check assets/js/loader-runtime.js && node --check assets/js/frontend.js && node --check assets/js/text-motion.js && node --check assets/js/text-accent-editor.js && node --check assets/js/parallax.js && node --check assets/js/custom-css-preview.js && node --check assets/js/editor.js && node --check assets/js/admin.js",
     "test:loader": "node --test tests/loader-failsafe.test.js",
-    "test:text-motion": "node --test tests/text-motion.test.js",
+		"test:text-motion": "node --test tests/text-motion.test.js tests/text-accent.test.js",
     "test:parallax": "node --test tests/parallax.test.js",
     "test:block-tools": "node --test tests/block-tools.test.js"
   }

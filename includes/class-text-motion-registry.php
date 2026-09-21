@@ -21,11 +21,25 @@ final class Text_Motion_Registry {
 		return null;
 	}
 
+	public static function accents(): array {
+		return array(
+			array( 'slug' => 'marker', 'label' => __( '単色マーカー', 'cni-motion' ), 'defaultDuration' => 700, 'defaultThickness' => 42, 'triggers' => self::TRIGGERS ),
+			array( 'slug' => 'gradient-marker', 'label' => __( 'グラデーションマーカー', 'cni-motion' ), 'defaultDuration' => 700, 'defaultThickness' => 42, 'triggers' => self::TRIGGERS ),
+			array( 'slug' => 'underline', 'label' => __( '下線ドロー', 'cni-motion' ), 'defaultDuration' => 700, 'defaultThickness' => 10, 'triggers' => self::TRIGGERS ),
+			array( 'slug' => 'brush', 'label' => __( 'ブラシマーカー', 'cni-motion' ), 'defaultDuration' => 700, 'defaultThickness' => 48, 'triggers' => self::TRIGGERS ),
+		);
+	}
+
 	public static function supports_block( string $name ): bool {
 		return in_array( $name, apply_filters( 'cni_motion_text_blocks', array( 'core/heading', 'core/paragraph' ) ), true );
 	}
 
 	public static function client_data(): array {
-		return array( 'effects' => self::effects(), 'blocks' => apply_filters( 'cni_motion_text_blocks', array( 'core/heading', 'core/paragraph' ) ) );
+		return array(
+			'effects'      => self::effects(),
+			'blocks'       => apply_filters( 'cni_motion_text_blocks', array( 'core/heading', 'core/paragraph' ) ),
+			'accents'      => self::accents(),
+			'accentBlocks' => apply_filters( 'cni_motion_text_accent_blocks', array( 'core/heading', 'core/paragraph', 'core/list-item' ) ),
+		);
 	}
 }

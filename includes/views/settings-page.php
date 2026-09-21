@@ -32,6 +32,10 @@ $loader_selects = array(
 		'label' => __( '表示頻度', 'cni-motion' ),
 		'options' => array( 'always' => __( '毎回', 'cni-motion' ), 'session' => __( 'セッションごとに1回', 'cni-motion' ), 'first-visit' => __( '初回訪問のみ', 'cni-motion' ) ),
 	),
+	'contentLayout' => array(
+		'label' => __( 'コンテンツレイアウト', 'cni-motion' ),
+		'options' => array( 'single' => __( '単一コンテンツ（従来互換）', 'cni-motion' ), 'logo-text' => __( 'ロゴ＋テキスト', 'cni-motion' ), 'logo-line' => __( 'ロゴ＋ライン', 'cni-motion' ), 'logo-text-line' => __( 'ロゴ＋テキスト＋ライン', 'cni-motion' ) ),
+	),
 	'contentType' => array(
 		'label' => __( 'コンテンツ', 'cni-motion' ),
 		'options' => array( 'custom-image' => __( 'ロゴ画像', 'cni-motion' ), 'site-title' => __( 'サイトタイトル', 'cni-motion' ), 'custom-text' => __( 'カスタムテキスト', 'cni-motion' ), 'line' => __( 'ライン', 'cni-motion' ), 'dots' => __( 'ドット', 'cni-motion' ), 'none' => __( 'なし', 'cni-motion' ) ),
@@ -103,13 +107,15 @@ $number_fields = array(
 								<li><strong><?php echo esc_html( $preset_label ); ?>：</strong><?php echo esc_html( $loader_preset_descriptions[ $preset_slug ] ); ?></li>
 							<?php endforeach; ?>
 						</ul>
+					<?php elseif ( 'contentLayout' === $name ) : ?>
+						<p class="description"><?php esc_html_e( '複合レイアウトでは、CNI Motionで選択したロゴ画像と下のカスタムテキスト／ラインを組み合わせます。', 'cni-motion' ); ?></p>
 					<?php endif; ?>
 				</td></tr>
 			<?php endforeach; ?>
 			<?php foreach ( $number_fields as $name => $definition ) : ?>
 				<tr><th><?php echo esc_html( $definition[0] ); ?></th><td><input type="number" min="<?php echo esc_attr( $definition[1] ); ?>" max="<?php echo esc_attr( $definition[2] ); ?>" step="<?php echo esc_attr( $definition[3] ); ?>" name="cni_motion_settings[loader][<?php echo esc_attr( $name ); ?>]" value="<?php echo esc_attr( $field( 'loader.' . $name ) ); ?>"></td></tr>
 			<?php endforeach; ?>
-			<tr><th><?php esc_html_e( 'サイトタイトル詳細', 'cni-motion' ); ?></th><td class="cni-title-settings">
+			<tr><th><?php esc_html_e( 'テキスト詳細', 'cni-motion' ); ?></th><td class="cni-title-settings">
 				<label><?php esc_html_e( 'PC文字サイズ', 'cni-motion' ); ?> <input type="number" min="12" max="200" name="cni_motion_settings[loader][siteTitleDesktopFontSize]" value="<?php echo esc_attr( $field( 'loader.siteTitleDesktopFontSize' ) ); ?>"> <?php esc_html_e( 'px', 'cni-motion' ); ?></label><br>
 				<label><?php esc_html_e( 'SP文字サイズ', 'cni-motion' ); ?> <input type="number" min="12" max="200" name="cni_motion_settings[loader][siteTitleMobileFontSize]" value="<?php echo esc_attr( $field( 'loader.siteTitleMobileFontSize' ) ); ?>"> <?php esc_html_e( 'px', 'cni-motion' ); ?></label><br>
 				<label><?php esc_html_e( '文字ウェイト', 'cni-motion' ); ?> <select name="cni_motion_settings[loader][siteTitleFontWeight]"><?php foreach ( range( 100, 900, 100 ) as $weight ) : ?><option value="<?php echo esc_attr( $weight ); ?>" <?php selected( (int) $field( 'loader.siteTitleFontWeight' ), $weight ); ?>><?php echo esc_html( $weight ); ?></option><?php endforeach; ?></select></label><br>
@@ -117,7 +123,7 @@ $number_fields = array(
 				<label><?php esc_html_e( '文字色', 'cni-motion' ); ?> <input class="cni-color" type="color" name="cni_motion_settings[loader][siteTitleTextColor]" value="<?php echo esc_attr( $field( 'loader.siteTitleTextColor' ) ); ?>"></label>
 			</td></tr>
 			<tr><th><?php esc_html_e( 'ロゴ画像', 'cni-motion' ); ?></th><td><input id="cni-custom-image-id" type="hidden" name="cni_motion_settings[loader][customImageId]" value="<?php echo esc_attr( $field( 'loader.customImageId' ) ); ?>"><button type="button" class="button" id="cni-select-image"><?php esc_html_e( 'ロゴ画像を選択', 'cni-motion' ); ?></button><?php $preview = wp_get_attachment_image_url( absint( $field( 'loader.customImageId' ) ), 'medium' ); ?><img id="cni-image-preview" src="<?php echo esc_url( $preview ?: '' ); ?>" alt="" <?php echo $preview ? '' : 'style="display:none"'; ?>><p class="description"><?php esc_html_e( 'テーマのロゴ設定とは連動せず、ここで選択した画像をLoaderへ表示します。', 'cni-motion' ); ?></p></td></tr>
-			<tr><th><?php esc_html_e( 'カスタムテキスト', 'cni-motion' ); ?></th><td><input class="regular-text" type="text" name="cni_motion_settings[loader][customText]" value="<?php echo esc_attr( $field( 'loader.customText' ) ); ?>"></td></tr>
+			<tr><th><?php esc_html_e( 'カスタムテキスト', 'cni-motion' ); ?></th><td><input class="regular-text" type="text" name="cni_motion_settings[loader][customText]" value="<?php echo esc_attr( $field( 'loader.customText' ) ); ?>"><p class="description"><?php esc_html_e( '単一コンテンツのカスタムテキストと、複合レイアウトのロゴ下テキストに使用します。', 'cni-motion' ); ?></p></td></tr>
 			<tr><th><?php esc_html_e( '背景色', 'cni-motion' ); ?></th><td><input class="cni-color" type="color" name="cni_motion_settings[loader][backgroundColor]" value="<?php echo esc_attr( $field( 'loader.backgroundColor' ) ); ?>"></td></tr>
 			<tr><th><?php esc_html_e( '管理者', 'cni-motion' ); ?></th><td><label><input type="checkbox" name="cni_motion_settings[loader][skipAdmin]" value="1" <?php checked( $field( 'loader.skipAdmin' ) ); ?>> <?php esc_html_e( '表示しない', 'cni-motion' ); ?></label></td></tr>
 		</table>

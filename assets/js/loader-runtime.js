@@ -151,6 +151,8 @@
 		var loadHandler = null;
 		var revealEndHandler = null;
 		var revealFinishFrame = null;
+		var enterStartFrames = [];
+		var imageCleanups = [];
 
 		function emit(name, detail) {
 			if (!emitEvents) return;
@@ -181,6 +183,10 @@
 		function clearWork() {
 			timers.forEach(function (timer) { window.clearTimeout(timer); });
 			timers = [];
+			if (typeof window.cancelAnimationFrame === 'function') enterStartFrames.forEach(function (frame) { window.cancelAnimationFrame(frame); });
+			enterStartFrames = [];
+			imageCleanups.forEach(function (cleanup) { cleanup(); });
+			imageCleanups = [];
 			if (loadHandler) { window.removeEventListener('load', loadHandler); loadHandler = null; }
 			if (revealEndHandler) { loader.removeEventListener('transitionend', revealEndHandler); revealEndHandler = null; }
 			if (revealFinishFrame && typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(revealFinishFrame);
@@ -267,6 +273,55 @@
 			schedule(function () { reveal(revealDuration); }, exitDuration);
 		}
 
+		function prepareContent(callback) {
+			var images = [];
+			var pending = 0;
+			var ready = false;
+
+			function startAfterInitialPaint() {
+				if (ready || finished) return;
+				ready = true;
+				imageCleanups.forEach(function (cleanup) { cleanup(); });
+				imageCleanups = [];
+				void loader.offsetWidth;
+				if (typeof window.requestAnimationFrame !== 'function') { schedule(callback, 0); return; }
+				enterStartFrames.push(window.requestAnimationFrame(function () {
+					enterStartFrames.push(window.requestAnimationFrame(callback));
+				}));
+			}
+
+			function imageReady() {
+				pending -= 1;
+				if (pending <= 0) startAfterInitialPaint();
+			}
+
+			if (typeof loader.querySelectorAll === 'function') images = Array.prototype.slice.call(loader.querySelectorAll('.cni-loader__content img'));
+			pending = images.length;
+			if (!pending) { startAfterInitialPaint(); return; }
+
+			schedule(startAfterInitialPaint, 1000);
+			images.forEach(function (image) {
+				var settled = false;
+				function settle() { if (settled) return; settled = true; cleanup(); imageReady(); }
+				function cleanup() {
+					if (typeof image.removeEventListener === 'function') {
+						image.removeEventListener('load', settle);
+						image.removeEventListener('error', settle);
+					}
+				}
+				imageCleanups.push(cleanup);
+				if (image.complete) {
+					if (typeof image.decode === 'function') {
+						try { Promise.resolve(image.decode()).then(settle, settle); }
+						catch (error) { settle(); }
+					} else settle();
+				} else if (typeof image.addEventListener === 'function') {
+					image.addEventListener('load', settle, { once: true });
+					image.addEventListener('error', settle, { once: true });
+				} else settle();
+			});
+		}
+
 		var controller = {
 			finish: finish,
 			getState: function () { return state; }
@@ -303,22 +358,25 @@
 			loader.style.setProperty('--cni-exit', exitDuration + 'ms');
 			loader.style.setProperty('--cni-reveal', revealDuration + 'ms');
 			if (manageRoot) lockScroll(root);
-			if (!setState('active')) throw new Error('Invalid loader active transition');
-			started = true;
-			loader.classList.add('cni-loader--active');
-			emit('cni:loader-start');
+			prepareContent(function () {
+				if (finished || started) return;
+				if (!setState('active')) { finish('error'); return; }
+				started = true;
+				loader.classList.add('cni-loader--active');
+				emit('cni:loader-start');
 
-			var ready = readyGate(maxWait);
-			schedule(function () { finish('safety-timeout'); }, enterDuration + holdDuration + maxWait + exitDuration + revealDuration + 1500);
-			if (manageRoot) handoffBootstrapCover(root, loader);
-			wait(enterDuration).then(function () {
-				if (finished || !setState('waiting')) return Promise.reject('finished');
-				loader.classList.add('cni-loader--content-ready');
-				return Promise.all([wait(holdDuration), ready]);
-			}).then(function () {
-				if (!finished) contentExit(exitDuration, revealDuration);
-			}).catch(function (error) {
-				if (!finished && error !== 'finished') finish('error');
+				var ready = readyGate(maxWait);
+				schedule(function () { finish('safety-timeout'); }, enterDuration + holdDuration + maxWait + exitDuration + revealDuration + 1500);
+				if (manageRoot) handoffBootstrapCover(root, loader);
+				wait(enterDuration).then(function () {
+					if (finished || !setState('waiting')) return Promise.reject('finished');
+					loader.classList.add('cni-loader--content-ready');
+					return Promise.all([wait(holdDuration), ready]);
+				}).then(function () {
+					if (!finished) contentExit(exitDuration, revealDuration);
+				}).catch(function (error) {
+					if (!finished && error !== 'finished') finish('error');
+				});
 			});
 		} catch (error) {
 			finish('error');

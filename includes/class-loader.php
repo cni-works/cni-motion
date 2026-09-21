@@ -22,14 +22,21 @@ final class Loader {
 			esc_attr( $l['backgroundColor'] ), absint( $l['contentEnterDuration'] ), absint( $l['logoDesktopWidth'] ), absint( $l['logoMobileWidth'] ), absint( $l['siteTitleDesktopFontSize'] ), absint( $l['siteTitleMobileFontSize'] ), absint( $l['siteTitleFontWeight'] ), esc_attr( (string) $l['siteTitleLetterSpacing'] ), esc_attr( $l['siteTitleTextColor'] )
 		);
 		printf(
-			'<div class="cni-loader" aria-hidden="true" data-cni-loader="%1$s" data-cni-frequency="%2$s" data-cni-loader-enter="%3$s" data-cni-loader-exit="%4$s" data-cni-loader-hold="%5$d" data-cni-loader-enter-duration="%6$d" data-cni-loader-exit-duration="%7$d" data-cni-loader-reveal-duration="%8$d" data-cni-loader-max-wait="%9$d" data-cni-loader-state="idle" style="%10$s"><div class="cni-loader__panel cni-loader__panel--a"></div><div class="cni-loader__panel cni-loader__panel--b"></div><div class="cni-loader__content">%11$s</div></div>',
-			esc_attr( $l['siteReveal'] ), esc_attr( $l['frequency'] ), esc_attr( $l['contentEnter'] ), esc_attr( $l['contentExit'] ), absint( $l['holdDuration'] ), absint( $l['contentEnterDuration'] ), absint( $l['contentExitDuration'] ), absint( $l['siteRevealDuration'] ), absint( $l['maxWait'] ), esc_attr( $style ), $content
+			'<div class="cni-loader" aria-hidden="true" data-cni-loader="%1$s" data-cni-frequency="%2$s" data-cni-loader-enter="%3$s" data-cni-loader-exit="%4$s" data-cni-loader-hold="%5$d" data-cni-loader-enter-duration="%6$d" data-cni-loader-exit-duration="%7$d" data-cni-loader-reveal-duration="%8$d" data-cni-loader-max-wait="%9$d" data-cni-loader-state="idle" data-cni-content-layout="%10$s" style="%11$s"><div class="cni-loader__panel cni-loader__panel--a"></div><div class="cni-loader__panel cni-loader__panel--b"></div><div class="cni-loader__content">%12$s</div></div>',
+			esc_attr( $l['siteReveal'] ), esc_attr( $l['frequency'] ), esc_attr( $l['contentEnter'] ), esc_attr( $l['contentExit'] ), absint( $l['holdDuration'] ), absint( $l['contentEnterDuration'] ), absint( $l['contentExitDuration'] ), absint( $l['siteRevealDuration'] ), absint( $l['maxWait'] ), esc_attr( $l['contentLayout'] ?? 'single' ), esc_attr( $style ), $content
 		);
 	}
 	private static function content( array $l ): string {
+		$layout = $l['contentLayout'] ?? 'single';
+		if ( 'single' !== $layout ) {
+			$items = array( self::logo( $l ) );
+			if ( in_array( $layout, array( 'logo-text', 'logo-text-line' ), true ) ) $items[] = '<p class="cni-loader__text cni-loader__site-title cni-loader__brand-text">' . esc_html( $l['customText'] ) . '</p>';
+			if ( in_array( $layout, array( 'logo-line', 'logo-text-line' ), true ) ) $items[] = '<span class="cni-loader__line"></span>';
+			return '<div class="cni-loader__stack">' . implode( '', $items ) . '</div>';
+		}
 		switch ( $l['contentType'] ) {
 			case 'site-logo': // Legacy slug; theme lookup was intentionally removed.
-			case 'custom-image': $url = self::content_image_url( $l ); return $url ? '<img class="cni-loader__image" src="' . esc_url( $url ) . '" alt="" loading="eager" fetchpriority="high" decoding="async">' : self::site_title();
+			case 'custom-image': return self::logo( $l );
 			case 'site-title': return self::site_title();
 			case 'custom-text': return '<p class="cni-loader__text">' . esc_html( $l['customText'] ) . '</p>';
 			case 'line': return '<span class="cni-loader__line"></span>';
@@ -37,8 +44,13 @@ final class Loader {
 			default: return '';
 		}
 	}
+	private static function logo( array $l ): string {
+		$url = wp_get_attachment_image_url( absint( $l['customImageId'] ), 'full' ) ?: '';
+		return $url ? '<img class="cni-loader__image" src="' . esc_url( $url ) . '" alt="" loading="eager" fetchpriority="high" decoding="async">' : self::site_title();
+	}
 	public static function content_image_url( array $l ): string {
-		if ( in_array( $l['contentType'], array( 'site-logo', 'custom-image' ), true ) ) return wp_get_attachment_image_url( absint( $l['customImageId'] ), 'full' ) ?: '';
+		$layout = $l['contentLayout'] ?? 'single';
+		if ( 'single' !== $layout || in_array( $l['contentType'], array( 'site-logo', 'custom-image' ), true ) ) return wp_get_attachment_image_url( absint( $l['customImageId'] ), 'full' ) ?: '';
 		return '';
 	}
 	private static function site_title(): string { $title = get_bloginfo( 'name' ); return $title ? '<p class="cni-loader__text cni-loader__site-title">' . esc_html( $title ) . '</p>' : ''; }

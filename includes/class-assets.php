@@ -81,8 +81,9 @@ JS,
 		);
 		wp_enqueue_script( 'cni-motion-text', CNI_MOTION_URL . 'assets/js/text-motion.js', array(), self::version( 'assets/js/text-motion.js' ), true );
 		wp_add_inline_script( 'cni-motion-text', 'window.CNIMotionTextData=' . wp_json_encode( Text_Motion_Registry::client_data() ) . ';window.CNIMotionTextEditor=true;', 'before' );
+		wp_enqueue_script( 'cni-motion-text-accent-editor', CNI_MOTION_URL . 'assets/js/text-accent-editor.js', array( 'cni-motion-text', 'wp-rich-text', 'wp-block-editor', 'wp-components', 'wp-element', 'wp-i18n', 'wp-data' ), self::version( 'assets/js/text-accent-editor.js' ), true );
 		wp_enqueue_script( 'cni-motion-custom-css-preview', CNI_MOTION_URL . 'assets/js/custom-css-preview.js', array(), self::version( 'assets/js/custom-css-preview.js' ), true );
-		wp_enqueue_script( 'cni-motion-editor', CNI_MOTION_URL . 'assets/js/editor.js', array( 'cni-motion-registry','cni-motion-text','cni-motion-custom-css-preview','wp-blocks','wp-compose','wp-components','wp-element','wp-i18n','wp-block-editor','wp-data','wp-hooks' ), self::version( 'assets/js/editor.js' ), true );
+		wp_enqueue_script( 'cni-motion-editor', CNI_MOTION_URL . 'assets/js/editor.js', array( 'cni-motion-registry','cni-motion-text','cni-motion-text-accent-editor','cni-motion-custom-css-preview','wp-blocks','wp-compose','wp-components','wp-element','wp-i18n','wp-block-editor','wp-data','wp-hooks' ), self::version( 'assets/js/editor.js' ), true );
 		wp_set_script_translations( 'cni-motion-editor', 'cni-motion', CNI_MOTION_DIR . 'languages' );
 	}
 	public static function admin( string $hook ): void {

@@ -25,12 +25,44 @@ test('Early CSS does not call a nonexistent WordPress style-tag helper', () => {
 	assert.match(assetsPhp, /<style id="cni-motion-early-loader-css"/);
 });
 
-test('Booting loader starts content before deferred runtime and preloads images', () => {
+test('Booting loader keeps content hidden without consuming Enter and preloads images', () => {
 	assert.match(motionCss, /html\.cni-loader-booting \.cni-loader\{display:block\}/);
+	assert.match(motionCss, /html\.cni-loader-booting \.cni-loader__content\{animation:none;opacity:0\}/);
+	assert.doesNotMatch(motionCss, /cni-loader-booting \.cni-loader__content\{animation:cni-loader-enter/);
 	assert.match(loaderPhp, /--cni-enter:%2\$dms/);
 	assert.match(assetsPhp, /rel="preload" as="image"/);
 	assert.match(loaderPhp, /fetchpriority.*high/);
-	assert.match(motionCss, /cni-motion-reduced-enabled\.cni-loader-booting/);
+	assert.doesNotMatch(motionCss, /cni-motion-reduced-enabled\.cni-loader-booting/);
+});
+
+test('Runtime waits for Loader images and a committed initial paint before Enter', () => {
+	const preparation = runtimeCode.indexOf('function prepareContent(callback)');
+	const images = runtimeCode.indexOf("querySelectorAll('.cni-loader__content img')", preparation);
+	const decode = runtimeCode.indexOf('image.decode()', images);
+	const firstFrame = runtimeCode.indexOf('window.requestAnimationFrame(function ()', preparation);
+	const active = runtimeCode.indexOf("loader.classList.add('cni-loader--active')", preparation);
+	assert.ok(preparation > -1 && images > preparation && decode > images);
+	assert.ok(firstFrame > preparation && active > firstFrame);
+});
+
+test('Loader Enter stays pending until its image is ready and the hidden state has painted', () => {
+	const loader = loaderElement();
+	const listeners = {};
+	const image = {
+		complete: false,
+		addEventListener(name, fn) { listeners[name] = fn; },
+		removeEventListener(name, fn) { if (listeners[name] === fn) delete listeners[name]; },
+	};
+	loader.querySelectorAll = () => [image];
+	const env = environment({ loader });
+	vm.runInNewContext(runtimeCode, env.context);
+	env.context.CNIMotionLoaderRuntime.run(loader, { root: env.root, manageRoot: false, emitEvents: false });
+	assert.equal(loader.classList.contains('cni-loader--active'), false);
+	assert.equal(env.raf.length, 0);
+	listeners.load();
+	assert.equal(loader.classList.contains('cni-loader--active'), false);
+	paintPreparedLoader(env);
+	assert.equal(loader.classList.contains('cni-loader--active'), true);
 });
 
 test('Loader logo is plugin-selected and its desktop/mobile width is shared by Preview and Frontend', () => {
@@ -43,6 +75,18 @@ test('Loader logo is plugin-selected and its desktop/mobile width is shared by P
 	assert.match(assetsPhp, /\.cni-loader__logo img,\.cni-loader__image\{max-width:var\(--cni-logo-mobile,180px\)/);
 	assert.equal(adminCode.includes('config.siteLogoUrl'), false);
 	assert.match(adminCode, /value\('contentType', 'custom-image'\)/);
+});
+
+test('composite Loader layouts preserve the legacy single content path and share Frontend/Preview structure', () => {
+	for (const layout of ['single', 'logo-text', 'logo-line', 'logo-text-line']) assert.ok(settingsPhp.includes(`'${layout}'`));
+	assert.match(settingsPhp, /'contentLayout' => 'single'/);
+	assert.match(loaderPhp, /data-cni-content-layout/);
+	assert.match(loaderPhp, /cni-loader__stack/);
+	assert.match(loaderPhp, /cni-loader__brand-text/);
+	assert.match(adminCode, /function contentLayoutNode\(layout\)/);
+	assert.match(adminCode, /loader\.dataset\.cniContentLayout/);
+	assert.match(adminCode, /cni-loader__stack/);
+	assert.match(motionCss, /\.cni-loader__stack\{/);
 });
 
 test('CNI Blocks integration uses every current registered block slug', () => {
@@ -245,9 +289,17 @@ function loaderElement() {
 		dispatch(name, event) { (listeners[name] || []).slice().forEach((fn) => fn(event)); },
 		listeners,
 		remove() { loader.isConnected = false; },
+		querySelectorAll() { return []; },
 		getBoundingClientRect() { return { left: 0, top: 0, right: 1280, bottom: 720, width: 1280, height: 720 }; },
 	};
 	return loader;
+}
+
+function paintPreparedLoader(env) {
+	assert.ok(env.raf.length > 0, 'expected the first preparation frame');
+	env.raf.shift()();
+	assert.ok(env.raf.length > 0, 'expected the second preparation frame');
+	env.raf.shift()();
 }
 
 test('Circle waits for its real pseudo-element transition before removing the Loader', async () => {
@@ -256,6 +308,7 @@ test('Circle waits for its real pseudo-element transition before removing the Lo
 	const env = environment({ loader });
 	vm.runInNewContext(runtimeCode, env.context);
 	const controller = env.context.CNIMotionLoaderRuntime.run(loader, { root: env.root, manageRoot: false, emitEvents: false });
+	paintPreparedLoader(env);
 	const fireNextZeroTimer = () => {
 		const entry = Array.from(env.timer.pending.entries()).find((item) => item[1].delay === 0);
 		assert.ok(entry, 'expected a zero-duration sequence timer');
@@ -297,6 +350,7 @@ test('Stable scrollbar gutter does not keep the Early Cover above Site Reveal', 
 	vm.runInNewContext(runtimeCode, env.context);
 	env.context.CNIMotionLoaderRuntime.run(loader, { root: env.root, manageRoot: true, emitEvents: false });
 	assert.equal(env.root.cniLoaderScrollLock.scrollbarWidth, 16);
+	paintPreparedLoader(env);
 	/* scrollbar-gutter:stable can make clientWidth report the full viewport after lock. */
 	env.root.clientWidth = 1280;
 	env.raf.shift()();
@@ -424,6 +478,7 @@ test('Case F: Active full-viewport loader takes responsibility before handoff', 
 	const controller = env.context.CNIMotionLoaderRuntime.run(loader, { root: env.root, manageRoot: true, emitEvents: false, onComplete() {} });
 	assert.equal(env.rootClasses.contains('cni-loader-booting'), true);
 	assert.notEqual(env.context.cniMotionEarlyCoverFailSafe, null);
+	paintPreparedLoader(env);
 	assert.ok(env.timer.pending.size > 1, 'loader safety timer must exist before handoff');
 	env.raf.shift()();
 	assert.equal(loader.classList.contains('cni-loader--active'), true);

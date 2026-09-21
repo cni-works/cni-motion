@@ -5,8 +5,12 @@
 	var effects = Array.isArray(data.effects) ? data.effects.filter(function (effect) { return effect && typeof effect.slug === 'string' && Number.isFinite(effect.defaultDuration) && Array.isArray(effect.triggers); }) : [];
 	var definitions = {};
 	effects.forEach(function (effect) { definitions[effect.slug] = effect; });
+	var accents = Array.isArray(data.accents) ? data.accents.filter(function (accent) { return accent && typeof accent.slug === 'string' && Number.isFinite(accent.defaultDuration) && Array.isArray(accent.triggers); }) : [];
+	var accentDefinitions = {};
+	accents.forEach(function (accent) { accentDefinitions[accent.slug] = accent; });
 	var reduced = !!config.reducedMotion && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	var charObservers = {};
+	var accentObservers = {};
 	var marqueeObserverContexts = new Map();
 	function marqueeObserverContext(documentRef) {
 		if (marqueeObserverContexts.has(documentRef)) return marqueeObserverContexts.get(documentRef);
@@ -162,6 +166,84 @@
 		}); });
 	}
 
+	function hexColor(value, opacity, fallback) {
+		var color = /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback;
+		var alpha = integer(opacity, 65, 10, 100) / 100;
+		return 'rgba(' + parseInt(color.slice(1, 3), 16) + ',' + parseInt(color.slice(3, 5), 16) + ',' + parseInt(color.slice(5, 7), 16) + ',' + alpha + ')';
+	}
+
+	function applyAccentStyles(element, options) {
+		options = options || {};
+		var definition = accentDefinitions[options.style] || accentDefinitions.marker;
+		if (!definition) return null;
+		var direction = options.direction === 'right' ? 'right' : 'left';
+		var duration = integer(options.duration, definition.defaultDuration, 100, 3000);
+		var delay = integer(options.delay, 0, 0, 5000);
+		var thickness = integer(options.thickness, definition.defaultThickness, 5, 80);
+		element.dataset.cniAccentStyle = definition.slug;
+		element.dataset.cniAccentDirection = direction;
+		element.style.setProperty('--cni-accent-color', hexColor(options.color, options.opacity, '#fff176'));
+		element.style.setProperty('--cni-accent-color-2', hexColor(options.color2, options.opacity, '#ffb74d'));
+		element.style.setProperty('--cni-accent-duration', duration + 'ms');
+		element.style.setProperty('--cni-accent-delay', delay + 'ms');
+		element.style.setProperty('--cni-accent-thickness', thickness + '%');
+		return { definition: definition, direction: direction, duration: duration, delay: delay, thickness: thickness };
+	}
+
+	function accentInstance(element, options) {
+		var resolved = applyAccentStyles(element, options);
+		if (!resolved) return null;
+		var duration = resolved.duration;
+		var delay = resolved.delay;
+		var done = false, timer = null, observer = null;
+		element.classList.remove('cni-text-accent--complete','cni-text-accent--running');
+		element.classList.add('cni-text-accent--prepared');
+
+		function complete() {
+			if (done) return;
+			done = true;
+			if (timer) window.clearTimeout(timer);
+			element.classList.remove('cni-text-accent--prepared','cni-text-accent--running');
+			element.classList.add('cni-text-accent--complete');
+			if (observer) { observer.unobserve(element); observer = null; }
+		}
+		function play() {
+			if (done || element.classList.contains('cni-text-accent--running')) return;
+			if (reduced) { complete(); return; }
+			element.classList.add('cni-text-accent--running');
+			timer = window.setTimeout(complete, delay + duration + 180);
+		}
+		function cleanup() {
+			if (timer) window.clearTimeout(timer);
+			if (observer) observer.unobserve(element);
+			element.classList.remove('cni-text-accent--prepared','cni-text-accent--running','cni-text-accent--complete');
+			['--cni-accent-color','--cni-accent-color-2','--cni-accent-duration','--cni-accent-delay','--cni-accent-thickness'].forEach(function (property) { element.style.removeProperty(property); });
+		}
+		return { play: play, complete: complete, cleanup: cleanup, setObserver: function (value) { observer = value; } };
+	}
+
+	function accentObserver(offset) {
+		var key = String(offset);
+		if (!accentObservers[key]) accentObservers[key] = new IntersectionObserver(function (entries) {
+			entries.forEach(function (entry) { if (entry.isIntersecting && entry.target.cniTextAccentInstance) entry.target.cniTextAccentInstance.play(); });
+		}, { rootMargin: '0px 0px -' + offset + '% 0px', threshold: 0.01 });
+		return accentObservers[key];
+	}
+
+	function scheduleAccent(element, instance, trigger, offset) {
+		window.requestAnimationFrame(function () { window.requestAnimationFrame(function () {
+			if (trigger === 'immediate') instance.play();
+			else if (trigger === 'site-ready') onCharacterReady(instance.play);
+			else if (trigger === 'auto') {
+				var ready = function () {
+					var rect = element.getBoundingClientRect();
+					if (rect.top < window.innerHeight && rect.bottom > 0) instance.play(); else { var obs = accentObserver(offset); instance.setObserver(obs); obs.observe(element); }
+				};
+				onCharacterReady(ready);
+			} else { var observer = accentObserver(offset); instance.setObserver(observer); observer.observe(element); }
+		}); });
+	}
+
 	function containsInteractive(element) { return !!element.querySelector('a[href],button,input,select,textarea,[contenteditable="true"],[tabindex]:not([tabindex="-1"])'); }
 	function marqueeInstance(element, options) {
 		if (containsInteractive(element)) return null;
@@ -227,11 +309,36 @@
 			if (marquee) element.cniTextMotionInstance = marquee;
 		}
 	}
-	function init() { document.querySelectorAll('[data-cni-text-mode]').forEach(initElement); }
+	function initAccent(element) {
+		if (element.cniTextAccentInstance) return;
+		var definition = accentDefinitions[element.dataset.cniAccentStyle] || accentDefinitions.marker;
+		if (!definition) return;
+		var trigger = element.dataset.cniAccentTrigger || 'auto';
+		if (definition.triggers.indexOf(trigger) === -1) trigger = 'auto';
+		var instance = accentInstance(element, {
+			style: definition.slug,
+			direction: element.dataset.cniAccentDirection,
+			color: element.dataset.cniAccentColor,
+			color2: element.dataset.cniAccentColor2,
+			duration: element.dataset.cniAccentDuration,
+			delay: element.dataset.cniAccentDelay,
+			thickness: element.dataset.cniAccentThickness,
+			opacity: element.dataset.cniAccentOpacity
+		});
+		if (!instance) return;
+		element.cniTextAccentInstance = instance;
+		scheduleAccent(element, instance, trigger, 12);
+	}
+	function init() {
+		document.querySelectorAll('[data-cni-text-mode]').forEach(initElement);
+		document.querySelectorAll('.cni-text-accent[data-cni-accent-style]').forEach(initAccent);
+	}
 
 	window.CNIMotionTextAPI = {
 		effects: effects,
 		character: function (element, options) { var instance = characterInstance(element, options); if (!instance) return null; window.requestAnimationFrame(function () { window.requestAnimationFrame(instance.play); }); return instance; },
+		accent: function (element, options) { var instance = accentInstance(element, options); if (!instance) return null; window.requestAnimationFrame(function () { window.requestAnimationFrame(instance.play); }); return instance; },
+		styleAccent: applyAccentStyles,
 		marquee: function (element, options) { return marqueeInstance(element, options); }
 	};
 	if (!window.CNIMotionTextEditor) {
