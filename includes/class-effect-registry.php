@@ -116,7 +116,32 @@ final class Effect_Registry {
 		return ! empty( $block[ $effect['category'] ] );
 	}
 
+	/**
+	 * Non-block elements can opt into a named, Motion-owned capability profile.
+	 * This keeps integrations from treating a private wrapper as a Gutenberg block
+	 * or duplicating the effect allow-list in another plugin.
+	 */
+	public static function element_target( string $target ): ?array {
+		$targets = array(
+			'free-image' => array( 'entrance' => true, 'emphasis' => true, 'clip' => true, 'mask' => true ),
+		);
+		$targets = apply_filters( 'cni_motion_element_targets', $targets );
+		return $targets[ $target ] ?? null;
+	}
+
+	public static function supports_element_effect( string $target, string $slug ): bool {
+		$effect = self::effect( $slug );
+		$support = self::element_target( $target );
+		if ( ! $effect || ! $support ) return false;
+		if ( 'reveal' === $effect['category'] ) return ! empty( $support[ ! empty( $effect['supports']['maskColor'] ) ? 'mask' : 'clip' ] );
+		return ! empty( $support[ $effect['category'] ] );
+	}
+
 	public static function client_data(): array {
-		return array( 'effects' => self::effects(), 'blockMatrix' => self::block_matrix() );
+		return array(
+			'effects'         => self::effects(),
+			'blockMatrix'     => self::block_matrix(),
+			'elementTargets'  => array( 'free-image' => self::element_target( 'free-image' ) ),
+		);
 	}
 }

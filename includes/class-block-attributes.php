@@ -88,6 +88,49 @@ final class Block_Attributes {
 		return $fallback;
 	}
 
+	/**
+	 * Applies the normal block-motion protocol to a known non-block element.
+	 * Integrations provide only a Motion-owned element target; sanitisation and
+	 * effect support remain centralised here.
+	 */
+	public static function apply_element_motion( \WP_HTML_Tag_Processor $processor, array $attributes, string $target ): bool {
+		$effect_slug = sanitize_key( $attributes['effect'] ?? 'fade' );
+		$effect = Effect_Registry::effect( $effect_slug );
+		if ( ! $effect || ! Effect_Registry::supports_element_effect( $target, $effect_slug ) ) return false;
+		$trigger = sanitize_key( $attributes['trigger'] ?? 'auto' );
+		if ( ! in_array( $trigger, $effect['triggers'], true ) ) $trigger = 'auto';
+		$speed_mode = sanitize_key( $attributes['speedMode'] ?? 'recommended' );
+		$speed_presets = array( 'fast' => 400, 'normal' => 600, 'slow' => 800, 'very-slow' => 1200 );
+		$duration = 'recommended' === $speed_mode ? $effect['defaultDuration'] : ( $speed_presets[ $speed_mode ] ?? ( $attributes['duration'] ?? $effect['defaultDuration'] ) );
+		$distance_mode = sanitize_key( $attributes['distanceMode'] ?? 'effect-default' );
+		$distance = 'effect-default' === $distance_mode && null !== $effect['defaultDistance'] ? $effect['defaultDistance'] : ( $attributes['distance'] ?? ( $effect['defaultDistance'] ?? 16 ) );
+		$easing = 'recommended' === ( $attributes['easing'] ?? 'recommended' ) ? $effect['defaultEasing'] : $attributes['easing'];
+		$easing = in_array( $easing, array( 'ease-out', 'ease-in-out', 'ease', 'linear' ), true ) ? $easing : $effect['defaultEasing'];
+		$once = 'entrance' === $effect['category'] ? self::boolean( $attributes['once'] ?? true, true ) : true;
+
+		$processor->add_class( 'cni-motion' );
+		$processor->add_class( 'cni-motion--pending' );
+		$processor->set_attribute( 'data-cni-motion', $effect['slug'] );
+		$processor->set_attribute( 'data-cni-category', $effect['category'] );
+		$processor->set_attribute( 'data-cni-trigger', $trigger );
+		$processor->set_attribute( 'data-cni-duration', (string) self::number( $duration, 100, 5000, $effect['defaultDuration'] ) );
+		$processor->set_attribute( 'data-cni-delay', (string) self::number( $attributes['delay'] ?? 0, 0, 10000, 0 ) );
+		$processor->set_attribute( 'data-cni-easing', $easing );
+		$processor->set_attribute( 'data-cni-distance', (string) self::number( $distance, 0, 200, $effect['defaultDistance'] ?? 16 ) );
+		$processor->set_attribute( 'data-cni-offset', (string) self::number( $attributes['offset'] ?? 12, 0, 50, 12 ) );
+		$processor->set_attribute( 'data-cni-once', $once ? 'true' : 'false' );
+		$processor->set_attribute( 'data-cni-mobile', self::boolean( $attributes['mobile'] ?? true, true ) ? 'true' : 'false' );
+		$processor->set_attribute( 'data-cni-mobile-delay', self::boolean( $attributes['mobileDelay'] ?? false, false ) ? 'true' : 'false' );
+		$processor->set_attribute( 'data-cni-mask-color', sanitize_hex_color( $attributes['maskColor'] ?? '' ) ?: '#ffffff' );
+		$intensity = sanitize_key( $attributes['intensity'] ?? 'standard' );
+		$intensity_type = $effect['supports']['intensity'] ?? false;
+		if ( 'zoom' === $intensity_type ) $intensity = in_array( $intensity, array( 'standard', 'strong', 'dynamic' ), true ) ? $intensity : 'standard';
+		elseif ( 'blur-zoom' === $intensity_type ) $intensity = in_array( $intensity, array( 'standard', 'strong' ), true ) ? $intensity : 'standard';
+		else $intensity = 'standard';
+		$processor->set_attribute( 'data-cni-intensity', $intensity );
+		return true;
+	}
+
 	public static function render( string $html, array $block ): string {
 		$a = $block['attrs'] ?? array();
 		$name = $block['blockName'] ?? '';

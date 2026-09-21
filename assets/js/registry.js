@@ -8,11 +8,18 @@
 	}
 	var effects = Array.isArray(data.effects) ? data.effects.filter(validEffect) : [];
 	var matrix = data.blockMatrix && typeof data.blockMatrix === 'object' && !Array.isArray(data.blockMatrix) ? data.blockMatrix : {};
+	var elementTargets = data.elementTargets && typeof data.elementTargets === 'object' && !Array.isArray(data.elementTargets) ? data.elementTargets : {};
 	var bySlug = {};
 	effects.forEach(function (effect) { bySlug[effect.slug] = effect; });
 
 	function supportsEffect(blockName, effect) {
 		var support = matrix[blockName];
+		if (!support || !effect) return false;
+		if (effect.category === 'reveal') return effect.supports && effect.supports.maskColor ? !!support.mask : !!support.clip;
+		return !!support[effect.category];
+	}
+	function supportsTarget(target, effect) {
+		var support = elementTargets[target];
 		if (!support || !effect) return false;
 		if (effect.category === 'reveal') return effect.supports && effect.supports.maskColor ? !!support.mask : !!support.clip;
 		return !!support[effect.category];
@@ -25,7 +32,10 @@
 		matrix: matrix,
 		get: function (slug) { return bySlug[slug] || null; },
 		forBlock: function (blockName) { return effects.filter(function (effect) { return supportsEffect(blockName, effect); }); },
+		forTarget: function (target) { return effects.filter(function (effect) { return supportsTarget(target, effect); }); },
 		supportsEffect: function (blockName, slug) { return supportsEffect(blockName, bySlug[slug]); },
+		supportsTargetEffect: function (target, slug) { return supportsTarget(target, bySlug[slug]); },
 		supportsStagger: function (blockName) { return !!(matrix[blockName] && matrix[blockName].stagger); }
 	};
+	try { document.dispatchEvent(new CustomEvent('cni:motion-registry-ready')); } catch (ignore) {}
 }());

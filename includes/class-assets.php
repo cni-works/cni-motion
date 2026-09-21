@@ -70,6 +70,7 @@ JS,
 			. ';window.CNIMotionEditorConfig=' . wp_json_encode(
 				array(
 					'attributes'      => Block_Attributes::schema(),
+					'generalEnabled'  => (bool) Settings::get()['general']['enabled'],
 					'parallax'        => Parallax::client_data(),
 					'blockTools'      => Block_Tools::client_data(),
 					'modules'         => Settings::get()['modules'],

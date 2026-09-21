@@ -9,6 +9,38 @@ final class CNI_Blocks_Integration {
 		add_filter( 'cni_motion_text_blocks', array( __CLASS__, 'text_blocks' ) );
 		add_filter( 'cni_motion_text_accent_blocks', array( __CLASS__, 'text_accent_blocks' ) );
 		add_filter( 'cni_motion_parallax_blocks', array( __CLASS__, 'parallax_blocks' ) );
+		add_filter( 'render_block', array( __CLASS__, 'render_free_image_motion' ), 20, 2 );
+	}
+
+	public static function render_free_image_motion( string $html, array $block ): string {
+		if ( 'cni-blocks/outer' !== ( $block['blockName'] ?? '' ) || ! class_exists( 'WP_HTML_Tag_Processor' ) ) return $html;
+		$settings = Settings::get();
+		if ( empty( $settings['general']['enabled'] ) ) return $html;
+		$attributes = $block['attrs'] ?? array();
+		if ( empty( $attributes['freeImagesEnabled'] ) || ! is_array( $attributes['freeImages'] ?? null ) ) return $html;
+
+		/* Outer+ saves all back images first, then front images. Include inactive
+		 * items in this sequence so each existing wrapper remains aligned without
+		 * adding identifiers to save() or invalidating older Outer+ blocks. */
+		$motions = array();
+		$images = array_slice( $attributes['freeImages'], 0, 6 );
+		foreach ( array( 'back', 'front' ) as $layer ) {
+			foreach ( $images as $image ) {
+				if ( ! is_array( $image ) || empty( $image['imageUrl'] ) ) continue;
+				if ( ( $image['layer'] ?? 'front' ) !== $layer ) continue;
+				$motions[] = ! empty( $image['motion']['enabled'] ) && is_array( $image['motion'] ) ? $image['motion'] : null;
+			}
+		}
+		if ( ! array_filter( $motions ) ) return $html;
+
+		$processor = new \WP_HTML_Tag_Processor( $html );
+		$position = 0;
+		while ( $processor->next_tag( array( 'class_name' => 'cni-outer__free-image-motion' ) ) ) {
+			$motion = $motions[ $position ] ?? null;
+			$position++;
+			if ( is_array( $motion ) ) Block_Attributes::apply_element_motion( $processor, $motion, 'free-image' );
+		}
+		return $processor->get_updated_html();
 	}
 
 	public static function parallax_blocks( array $blocks ): array {
