@@ -202,7 +202,7 @@ final class Block_Tools {
 		foreach ( $parts as $selector ) {
 			$selector = trim( $selector );
 			if ( ! preg_match( '/^selector(?=$|[\s>.#:\[])/i', $selector ) ) return null;
-			$remainder = ltrim( substr( $selector, strlen( 'selector' ) ) );
+			$remainder = substr( $selector, strlen( 'selector' ) );
 			if ( self::contains_sibling_combinator( $remainder ) ) return null;
 			if ( preg_match( '/\bselector\b/i', $remainder ) ) return null;
 			$compiled[] = $scope . $remainder;

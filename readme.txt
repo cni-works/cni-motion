@@ -3,7 +3,7 @@ Contributors: cni
 Requires at least: 6.7
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,6 +18,10 @@ Effectごとの推奨値、Trigger、Once / Repeat、Mobile設定、Stagger、Ed
 3. 「設定 > CNI Motion」でPage Loaderを設定します。
 
 == Changelog ==
+= 1.1.1 =
+* ブロック単位Custom CSSで、`selector img`や`selector .class`などの子孫セレクタが正しく適用されるよう修正しました。
+* Gutenberg Editor Previewと公開画面で同じスコープCSS変換結果になるよう整合しました。
+
 = 1.0.5 =
 * 文字アクセント設定ポップアップのレイアウトと視認性を改善しました。
 * CNI Blocksの見出し+で文字アクセントを利用する際の選択判定と互換性を改善しました。

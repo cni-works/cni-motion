@@ -92,7 +92,7 @@
 		for (var index = 0; index < parts.length; index++) {
 			var selector = parts[index].trim();
 			if (!/^selector(?=$|[\s>.#:\[])/i.test(selector)) return null;
-			var remainder = selector.slice('selector'.length).trimStart();
+			var remainder = selector.slice('selector'.length);
 			if (hasSiblingCombinator(remainder) || /\bselector\b/i.test(remainder)) return null;
 			output.push(scope + remainder);
 		}

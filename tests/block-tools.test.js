@@ -107,7 +107,8 @@ test('selected block receives a scoped live preview in its own editor document',
 test('editor preview compiler accepts the public syntax and rejects unsafe scope escapes', () => {
 	const scope = '.cni-block-a1b2c3d4';
 	assert.equal(compilePreview('selector { color:red; }', scope), scope + '{color:red;}');
-	assert.equal(compilePreview('selector:hover, selector > .child { opacity:.8; }', scope), scope + ':hover,' + scope + '> .child{opacity:.8;}');
+	assert.equal(compilePreview('selector:hover, selector > .child { opacity:.8; }', scope), scope + ':hover,' + scope + ' > .child{opacity:.8;}');
+	assert.equal(compilePreview('selector img { display:block; }', scope), scope + ' img{display:block;}');
 	assert.equal(compilePreview('@media (max-width: 767px) { selector { padding:10px; } }', scope), '@media (max-width: 767px){' + scope + '{padding:10px;}}');
 	assert.equal(compilePreview('body { color:red; }', scope), null);
 	assert.equal(compilePreview('selector + .other { color:red; }', scope), null);

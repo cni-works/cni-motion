@@ -17,7 +17,8 @@ function expect_null( $actual, string $message ): void {
 
 $scope = '.cni-block-a1b2c3d4';
 expect_same( '.cni-block-a1b2c3d4{color:red;}', Block_Tools::compile_custom_css( 'selector { color:red; }', $scope ), 'Basic selector must be scoped.' );
-expect_same( '.cni-block-a1b2c3d4:hover,.cni-block-a1b2c3d4> .child{opacity:.8;}', Block_Tools::compile_custom_css( 'selector:hover, selector > .child { opacity:.8; }', $scope ), 'Pseudo and child selectors must be scoped.' );
+expect_same( '.cni-block-a1b2c3d4:hover,.cni-block-a1b2c3d4 > .child{opacity:.8;}', Block_Tools::compile_custom_css( 'selector:hover, selector > .child { opacity:.8; }', $scope ), 'Pseudo and child selectors must be scoped.' );
+expect_same( '.cni-block-a1b2c3d4 img{display:block;}', Block_Tools::compile_custom_css( 'selector img { display:block; }', $scope ), 'Descendant selector whitespace must be preserved.' );
 expect_same( '@media (max-width: 767px){.cni-block-a1b2c3d4{padding:20px;}}', Block_Tools::compile_custom_css( '@media (max-width: 767px) { selector { padding:20px; } }', $scope ), 'Media query must preserve scoped rules.' );
 expect_same( '.cni-block-a1b2c3d4::before{content:"selector";}', Block_Tools::compile_custom_css( 'selector::before { content:"selector"; }', $scope ), 'Declaration strings must not be replaced.' );
 expect_null( Block_Tools::compile_custom_css( 'body { color:red; }', $scope ), 'Global selectors must be rejected.' );
