@@ -3,7 +3,7 @@
 	var el = wp.element.createElement, Fragment = wp.element.Fragment, useEffect = wp.element.useEffect, useState = wp.element.useState;
 	var __ = wp.i18n.__, _x = wp.i18n._x, sprintf = wp.i18n.sprintf;
 	var InspectorControls = wp.blockEditor.InspectorControls;
-	var PanelBody = wp.components.PanelBody, SelectControl = wp.components.SelectControl, ToggleControl = wp.components.ToggleControl, RangeControl = wp.components.RangeControl, TextControl = wp.components.TextControl, TextareaControl = wp.components.TextareaControl, Button = wp.components.Button;
+	var PanelBody = wp.components.PanelBody, SelectControl = wp.components.SelectControl, ToggleControl = wp.components.ToggleControl, RangeControl = wp.components.RangeControl, TextControl = wp.components.TextControl, TextareaControl = wp.components.TextareaControl, Button = wp.components.Button, Modal = wp.components.Modal;
 	var api = window.CNIMotionRegistryAPI;
 	var textApi = window.CNIMotionTextAPI;
 	var textData = window.CNIMotionTextData || {}, textBlocks = Array.isArray(textData.blocks) ? textData.blocks : [], textEffects = textApi && Array.isArray(textApi.effects) ? textApi.effects : [];
@@ -21,7 +21,7 @@
 	var distanceValues = [8,16,24,40];
 	var staggerValues = [50,100,150,200,300,400];
 	var characterIntervals = [30,50,70,100,150];
-	var emptyCustomCssTemplate = 'selector {\n\n\n}';
+	var emptyCustomCssTemplate = 'selector {\n\n}';
 	var responsiveCssTemplates = {
 		selector:'selector {\n\n}',
 		mobile:'@media screen and (max-width: 480px) {\n    /* 480px以下：スマホ用 */\n    selector {\n\n    }\n}',
@@ -215,6 +215,80 @@
 		return !withoutComments.trim() || /^\s*selector\s*\{\s*\}\s*$/i.test(withoutComments);
 	}
 
+	function updateCustomCss(props, value) {
+		var attributes = props.attributes, empty = isEmptyCustomCss(value), updates = {cniCustomCss:empty ? '' : value};
+		if (empty) updates.cniCssId = '';
+		else if (!/^cni-block-[a-z0-9]{8,32}$/.test(attributes.cniCssId || '') || cssIdUsedByOther(props, attributes.cniCssId)) updates.cniCssId = createCssId();
+		props.setAttributes(updates);
+	}
+
+	function appendCustomCssRule(value, target) {
+		var current = isEmptyCustomCss(value) ? '' : String(value || '').replace(/\s+$/,'');
+		return (current ? current + '\n\n' : '') + target + ' {\n\n}';
+	}
+
+	function customCssPreviewStatus(props) {
+		var value = props.attributes.cniCustomCss || '', cssId = props.attributes.cniCssId || '', warning, compiled, node, inspection;
+		if (isEmptyCustomCss(value)) return {type:'empty',label:__('Custom CSSは未設定です。','cni-motion')};
+		warning = customCssWarning(value);
+		if (warning) return {type:'error',label:warning};
+		if (!/^cni-block-[a-z0-9]{8,32}$/.test(cssId)) return {type:'pending',label:__('プレビューを準備しています。','cni-motion')};
+		if (!window.CNIMotionCustomCssPreviewAPI) return {type:'error',label:__('CSS Previewを初期化できませんでした。','cni-motion')};
+		compiled = window.CNIMotionCustomCssPreviewAPI.compile(value, '.' + cssId);
+		if (!compiled) return {type:'error',label:__('CSS構文を確認してください。現在の入力はプレビューへ反映されていません。','cni-motion')};
+		node = findBlockNode(props.clientId);
+		if (!node) return {type:'pending',label:__('ブロックのPreviewを準備しています。','cni-motion')};
+		if (typeof window.CNIMotionCustomCssPreviewAPI.inspect === 'function') {
+			inspection = window.CNIMotionCustomCssPreviewAPI.inspect(value, '.' + cssId, node);
+			if (inspection && inspection.measurableTargets > 0 && inspection.matchCount === 0) return {type:'pending',label:__('CSS構文OK・対象要素は0件です。selectorの対象を確認してください。','cni-motion')};
+			if (inspection && inspection.matchCount > 0) return {type:'success',label:sprintf(__('CSS構文OK・対象%d件・Editor Previewへ反映中','cni-motion'),inspection.matchCount)};
+		}
+		return {type:'success',label:__('CSS構文OK・Editor Previewへ反映中','cni-motion')};
+	}
+
+	function CustomCssStatus(props) {
+		var status = customCssPreviewStatus(props);
+		return el('p',{className:'cni-custom-css-status is-' + status.type,'aria-live':'polite'},status.label);
+	}
+
+	function CustomCssEditorControls(props) {
+		var attributes = props.attributes, value = attributes.cniCustomCss || emptyCustomCssTemplate;
+		var classState = useState(''), className = classState[0], setClassName = classState[1];
+		var modalState = useState(false), modalOpen = modalState[0], setModalOpen = modalState[1];
+		var normalizedClass = String(className || '').trim().replace(/^\./,'');
+		var validClass = /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(normalizedClass);
+		function change(next) { updateCustomCss(props, next); }
+		function addRule(target) { change(appendCustomCssRule(attributes.cniCustomCss || '', target)); }
+		function field(rows, key) {
+			return el(TextareaControl,{label:__('Custom CSS','cni-motion'),value:value,rows:rows,onChange:change,help:rows < 20 ? __('selectorから始まるルールと@mediaを使用できます。入力内容は編集画面へリアルタイム反映されます。','cni-motion') : undefined,key:key});
+		}
+		return el(Fragment,null,
+			field(8,'cni-custom-css'),
+			el(CustomCssStatus,Object.assign({key:'cni-custom-css-status'},props)),
+			el('div',{className:'cni-custom-css-rule-tools',key:'cni-custom-css-rule-tools'},
+				el('p',{className:'cni-custom-css-rule-tools__title'},__('対象ルールを追加','cni-motion')),
+				el('div',{className:'cni-custom-css-rule-tools__buttons'},
+					el(Button,{variant:'secondary',isSmall:true,onClick:function(){addRule('selector');}},__('本体','cni-motion')),
+					el(Button,{variant:'secondary',isSmall:true,onClick:function(){addRule('selector img');}},__('画像 img','cni-motion')),
+					el(Button,{variant:'secondary',isSmall:true,onClick:function(){addRule('selector hr');}},__('区切り hr','cni-motion')),
+					el(Button,{variant:'secondary',isSmall:true,onClick:function(){addRule('selector a');}},__('リンク a','cni-motion'))
+				),
+				el('div',{className:'cni-custom-css-rule-tools__class'},
+					el(TextControl,{label:__('クラス名','cni-motion'),value:className,placeholder:'example',onChange:setClassName}),
+					el(Button,{variant:'secondary',isSmall:true,disabled:!validClass,onClick:function(){addRule('selector .' + normalizedClass);}},__('クラスを追加','cni-motion'))
+				),
+				el('p',{className:'components-base-control__help'},__('既存CSSを残したまま末尾へ新しいルールを追加します。','cni-motion'))
+			),
+			el(Button,{variant:'secondary',onClick:function(){setModalOpen(true);},className:'cni-custom-css-open-modal',key:'cni-custom-css-open-modal'},__('大きな画面でCSSを編集','cni-motion')),
+			modalOpen && el(Modal,{title:__('Custom CSSを編集','cni-motion'),onRequestClose:function(){setModalOpen(false);},className:'cni-custom-css-modal',key:'cni-custom-css-modal'},
+				field(22,'cni-custom-css-modal-field'),
+				el(CustomCssStatus,props),
+				el('div',{className:'cni-custom-css-modal__actions'},el(Button,{variant:'primary',onClick:function(){setModalOpen(false);}},__('閉じる','cni-motion')))
+			),
+			el(ResponsiveCssTemplates,{key:'cni-responsive-css-templates'})
+		);
+	}
+
 	function copyText(value) {
 		if (window.navigator && window.navigator.clipboard && typeof window.navigator.clipboard.writeText === 'function') return window.navigator.clipboard.writeText(value);
 		return new Promise(function (resolve, reject) {
@@ -250,7 +324,7 @@
 	function CustomCssPreview(props) {
 		var css = props.attributes.cniCustomCss || '', cssId = props.attributes.cniCssId || '';
 		useEffect(function () {
-			if (!props.isSelected || !moduleSettings.customCss || !customCssBlocks[props.name] || !editorConfig.canUseCustomCss) return;
+			if (!moduleSettings.customCss || !customCssBlocks[props.name] || !editorConfig.canUseCustomCss) return;
 			if (!/^cni-block-[a-z0-9]{8,32}$/.test(cssId) || !window.CNIMotionCustomCssPreviewAPI) return;
 			var compiled = window.CNIMotionCustomCssPreviewAPI.compile(css, '.' + cssId);
 			if (!compiled) return;
@@ -265,7 +339,7 @@
 				if (style.parentNode) style.parentNode.removeChild(style);
 				if (!hadClass) node.classList.remove(cssId);
 			};
-		}, [props.isSelected, props.name, props.clientId, css, cssId]);
+		}, [props.name, props.clientId, css, cssId]);
 		return null;
 	}
 
@@ -281,10 +355,7 @@
 		}
 		if (customCssEnabled) {
 			if (editorConfig.canUseCustomCss) {
-				controls.push(el(TextareaControl,{label:__('Custom CSS','cni-motion'),value:a.cniCustomCss || emptyCustomCssTemplate,rows:10,onChange:function(value){var empty=isEmptyCustomCss(value),updates={cniCustomCss:empty?'':value};if(empty)updates.cniCssId='';else if(!/^cni-block-[a-z0-9]{8,32}$/.test(a.cniCssId||'')||cssIdUsedByOther(props,a.cniCssId))updates.cniCssId=createCssId();set(updates);},help:__('selectorから始まるルールと@mediaを使用できます。入力内容は選択中のブロックへリアルタイム反映されます。','cni-motion'),key:'cni-custom-css'}));
-				var warning = customCssWarning(a.cniCustomCss || '');
-				if (warning) controls.push(el('p',{className:'components-base-control__help cni-custom-css-warning',key:'cni-custom-css-warning'},warning));
-				controls.push(el(ResponsiveCssTemplates,{key:'cni-responsive-css-templates'}));
+				controls.push(el(CustomCssEditorControls,Object.assign({key:'cni-custom-css-editor-controls'},props)));
 			} else controls.push(el('p',{className:'components-base-control__help',key:'cni-custom-css-permission'},__('Custom CSSの編集にはunfiltered_html権限が必要です。','cni-motion')));
 		}
 		return el(PanelBody,{title:__('CNI Block Settings','cni-motion'),initialOpen:false,key:'cni-block-tools-panel'},controls);

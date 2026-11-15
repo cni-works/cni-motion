@@ -233,6 +233,7 @@
 			if (reduced) return event.target === loader && event.propertyName === 'opacity';
 			var effect = loader.dataset.cniLoader || 'fade';
 			if (effect === 'circle-reveal') return event.target === loader && (!event.pseudoElement || event.pseudoElement === '::before') && (event.propertyName === 'width' || event.propertyName === 'height');
+			if (effect === 'center-curtain' || effect === 'diagonal-curtain') return event.target === loader && (!event.pseudoElement || event.pseudoElement === '::before') && event.propertyName === 'width';
 			if (effect === 'fade') return event.target === loader && event.propertyName === 'opacity';
 			if (effect.indexOf('wipe-') === 0) return event.target === loader && event.propertyName === 'transform';
 			if (effect === 'split-horizontal' || effect === 'split-vertical') return event.target !== loader && event.target.parentNode === loader && event.target.classList && event.target.classList.contains('cni-loader__panel') && event.propertyName === 'transform';

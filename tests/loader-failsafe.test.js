@@ -331,9 +331,22 @@ test('Circle waits for its real pseudo-element transition before removing the Lo
 test('All Loader reveal families use transition completion with a bounded fallback', () => {
 	assert.match(runtimeCode, /loader\.addEventListener\('transitionend', revealEndHandler\)/);
 	assert.match(runtimeCode, /effect === 'circle-reveal'.*event\.pseudoElement/);
+	assert.match(runtimeCode, /effect === 'center-curtain'.*effect === 'diagonal-curtain'.*event\.propertyName === 'width'/);
 	assert.match(runtimeCode, /effect\.indexOf\('wipe-'\) === 0/);
 	assert.match(runtimeCode, /effect === 'split-horizontal'.*effect === 'split-vertical'/);
 	assert.match(runtimeCode, /revealDuration \+ Math\.max\(500, Math\.min\(1500, revealDuration\)\)/);
+});
+
+test('Center and Diagonal Curtain share duration, Preview runtime and reduced-motion fallback', () => {
+	for (const effect of ['center-curtain','diagonal-curtain']) {
+		assert.match(settingsPhp, new RegExp(`'${effect}'`));
+		assert.match(settingsPagePhp, new RegExp(effect === 'center-curtain' ? 'Center Curtain' : 'Diagonal Curtain'));
+		assert.match(motionCss, new RegExp(`data-cni-loader=${effect}`));
+	}
+	assert.match(motionCss, /transition:width var\(--cni-reveal,500ms\) ease-in-out/);
+	assert.match(motionCss, /cni-motion-reduced-enabled \.cni-loader--exiting\[data-cni-loader=center-curtain\]::before/);
+	assert.match(motionCss, /cni-motion-reduced-enabled \.cni-loader--exiting\[data-cni-loader=diagonal-curtain\]::before/);
+	assert.match(adminCode, /loader\.dataset\.cniLoader = value\('siteReveal'/);
 });
 
 test('Stable scrollbar gutter does not keep the Early Cover above Site Reveal', () => {

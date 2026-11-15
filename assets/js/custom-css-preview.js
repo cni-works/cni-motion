@@ -86,7 +86,7 @@
 		return false;
 	}
 
-	function compileSelectors(value, scope) {
+	function compileSelectors(value, scope, targets) {
 		var parts = splitSelectors(value), output = [];
 		if (!parts || !parts.length) return null;
 		for (var index = 0; index < parts.length; index++) {
@@ -95,11 +95,12 @@
 			var remainder = selector.slice('selector'.length);
 			if (hasSiblingCombinator(remainder) || /\bselector\b/i.test(remainder)) return null;
 			output.push(scope + remainder);
+			if (targets) targets.push(remainder);
 		}
 		return output.join(',');
 	}
 
-	function compileRules(css, scope, allowMedia) {
+	function compileRules(css, scope, allowMedia, targets) {
 		var output = '', index = 0, open, close, prelude, body, nested, selectors;
 		while (index < css.length) {
 			while (index < css.length && /\s/.test(css[index])) index++;
@@ -112,12 +113,12 @@
 			body = css.slice(open + 1, close);
 			if (prelude[0] === '@') {
 				if (!allowMedia || !/^@media\s+[a-z0-9\s():.,\/%<>=_-]+$/i.test(prelude)) return null;
-				nested = compileRules(body, scope, false);
+				nested = compileRules(body, scope, false, targets);
 				if (!nested) return null;
 				output += prelude + '{' + nested + '}';
 			} else {
 				if (body.indexOf('{') !== -1 || body.indexOf('}') !== -1 || !body.trim()) return null;
-				selectors = compileSelectors(prelude, scope);
+				selectors = compileSelectors(prelude, scope, targets);
 				if (!selectors) return null;
 				output += selectors + '{' + body.trim() + '}';
 			}
@@ -126,13 +127,38 @@
 		return output;
 	}
 
-	function compile(css, scope) {
+	function compileDetails(css, scope) {
+		var targets = [], compiled;
 		if (typeof css !== 'string' || !css.trim() || css.length > 20000) return null;
 		if (!/^\.[a-z][a-z0-9-]{7,48}$/.test(scope)) return null;
 		if (/<|\u0000|@\s*(?:import|font-face|namespace|keyframes)\b|expression\s*\(|javascript\s*:/i.test(css)) return null;
 		css = stripComments(css);
-		return css === null ? null : compileRules(css, scope, true);
+		if (css === null) return null;
+		compiled = compileRules(css, scope, true, targets);
+		return compiled === null ? null : {css:compiled,targets:targets};
 	}
 
-	window.CNIMotionCustomCssPreviewAPI = { compile: compile };
+	function compile(css, scope) {
+		var details = compileDetails(css, scope);
+		return details ? details.css : null;
+	}
+
+	function inspect(css, scope, node) {
+		var details = compileDetails(css, scope), matched = [], measurable = 0;
+		if (!details) return null;
+		if (!node || typeof node.querySelectorAll !== 'function') return {css:details.css,matchCount:null,measurableTargets:0};
+		details.targets.forEach(function (remainder) {
+			var nodes, selector;
+			if (/:\s*(?:hover|active|focus|focus-within|focus-visible|visited)\b/i.test(remainder)) return;
+			measurable++;
+			if (!remainder) { if (matched.indexOf(node) === -1) matched.push(node); return; }
+			selector = ':scope' + remainder;
+			try { nodes = node.querySelectorAll(selector); }
+			catch (error) { measurable--; return; }
+			Array.prototype.forEach.call(nodes,function (item) { if (matched.indexOf(item) === -1) matched.push(item); });
+		});
+		return {css:details.css,matchCount:matched.length,measurableTargets:measurable};
+	}
+
+	window.CNIMotionCustomCssPreviewAPI = { compile: compile, inspect: inspect };
 }(window));

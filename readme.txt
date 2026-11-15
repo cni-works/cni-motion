@@ -3,7 +3,7 @@ Contributors: cni
 Requires at least: 6.7
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,6 +18,11 @@ Effectごとの推奨値、Trigger、Once / Repeat、Mobile設定、Stagger、Ed
 3. 「設定 > CNI Motion」でPage Loaderを設定します。
 
 == Changelog ==
+= 1.1.2 =
+* Custom CSSのEditor Preview状態と対象要素数を表示し、実用的なselector追加ボタンと拡大編集画面を追加しました。
+* ブロック選択を移動した後もCustom CSSのEditor Previewを維持するよう改善しました。
+* Page Loaderのサイト表示演出へCenter CurtainとDiagonal Curtainを追加しました。
+
 = 1.1.1 =
 * ブロック単位Custom CSSで、`selector img`や`selector .class`などの子孫セレクタが正しく適用されるよう修正しました。
 * Gutenberg Editor Previewと公開画面で同じスコープCSS変換結果になるよう整合しました。

@@ -50,7 +50,7 @@ $loader_selects = array(
 	),
 	'siteReveal' => array(
 		'label' => __( 'サイト表示', 'cni-motion' ),
-		'options' => array( 'fade' => __( 'Fade', 'cni-motion' ), 'split-horizontal' => __( 'Split Horizontal', 'cni-motion' ), 'split-vertical' => __( 'Split Vertical', 'cni-motion' ), 'wipe-left' => __( 'Wipe Left', 'cni-motion' ), 'wipe-right' => __( 'Wipe Right', 'cni-motion' ), 'wipe-up' => __( 'Wipe Up', 'cni-motion' ), 'wipe-down' => __( 'Wipe Down', 'cni-motion' ), 'circle-reveal' => __( 'Circle Reveal', 'cni-motion' ) ),
+		'options' => array( 'fade' => __( 'Fade', 'cni-motion' ), 'split-horizontal' => __( 'Split Horizontal', 'cni-motion' ), 'split-vertical' => __( 'Split Vertical', 'cni-motion' ), 'wipe-left' => __( 'Wipe Left', 'cni-motion' ), 'wipe-right' => __( 'Wipe Right', 'cni-motion' ), 'wipe-up' => __( 'Wipe Up', 'cni-motion' ), 'wipe-down' => __( 'Wipe Down', 'cni-motion' ), 'circle-reveal' => __( 'Circle Reveal', 'cni-motion' ), 'center-curtain' => __( 'Center Curtain', 'cni-motion' ), 'diagonal-curtain' => __( 'Diagonal Curtain', 'cni-motion' ) ),
 	),
 );
 $loader_preset_descriptions = array(

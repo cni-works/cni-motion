@@ -16,6 +16,7 @@ const view = read('includes/views/settings-page.php');
 const previewContext = { window: {} };
 vm.runInNewContext(preview, previewContext);
 const compilePreview = previewContext.window.CNIMotionCustomCssPreviewAPI.compile;
+const inspectPreview = previewContext.window.CNIMotionCustomCssPreviewAPI.inspect;
 
 test('module schema defaults new features to off and advances settings schema', () => {
 	assert.match(settings, /SCHEMA_VERSION = 3/);
@@ -55,11 +56,11 @@ test('custom CSS is opt-in, permission gated and keeps its visible starter templ
 	assert.match(assets, /current_user_can\( 'unfiltered_html' \)/);
 	assert.match(view, /modules\]\[customCss\]/);
 	assert.match(editor, /TextareaControl/);
-	assert.match(editor, /emptyCustomCssTemplate = 'selector \{\\n\\n\\n\}'/);
-	assert.match(editor, /value:a\.cniCustomCss\s*\|\|\s*emptyCustomCssTemplate/);
+	assert.match(editor, /emptyCustomCssTemplate = 'selector \{\\n\\n\}'/);
+	assert.match(editor, /value = attributes\.cniCustomCss \|\| emptyCustomCssTemplate/);
 	assert.match(editor, /function isEmptyCustomCss/);
-	assert.match(editor, /updates=\{cniCustomCss:empty\?'':value\}/);
-	assert.match(editor, /if\(empty\)updates\.cniCssId=''/);
+	assert.match(editor, /updates = \{cniCustomCss:empty \? '' : value\}/);
+	assert.match(editor, /if \(empty\) updates\.cniCssId = ''/);
 });
 
 test('responsive templates copy without mutating the custom CSS attribute', () => {
@@ -100,8 +101,40 @@ test('selected block receives a scoped live preview in its own editor document',
 	assert.match(editor, /doc\.head\.appendChild\(style\)/);
 	assert.match(editor, /style\.parentNode\.removeChild\(style\)/);
 	assert.match(editor, /node\.classList\.remove\(cssId\)/);
+	assert.doesNotMatch(editor, /if \(!props\.isSelected \|\| !moduleSettings\.customCss/);
 	assert.match(preview, /CNIMotionCustomCssPreviewAPI/);
 	assert.match(preview, /@\\s\*\(\?:import\|font-face\|namespace\|keyframes\)/);
+});
+
+test('custom CSS editor reports preview state and inserts practical scoped rules', () => {
+	assert.match(editor, /CSS構文OK・Editor Previewへ反映中/);
+	assert.match(editor, /CSS構文OK・対象要素は0件です/);
+	assert.match(editor, /CSS構文OK・対象%d件・Editor Previewへ反映中/);
+	assert.match(editor, /CSS構文を確認してください。現在の入力はプレビューへ反映されていません/);
+	assert.match(editor, /addRule\('selector img'\)/);
+	assert.match(editor, /addRule\('selector hr'\)/);
+	assert.match(editor, /addRule\('selector a'\)/);
+	assert.match(editor, /addRule\('selector \.' \+ normalizedClass\)/);
+	assert.match(editor, /大きな画面でCSSを編集/);
+	assert.match(editor, /CustomCssEditorControls/);
+});
+
+test('custom CSS inspector reports matched descendant targets without changing compilation', () => {
+	const scope = '.cni-block-a1b2c3d4';
+	const image = { nodeName: 'IMG' };
+	const node = { querySelectorAll(selector) { return selector === ':scope img' ? [image] : []; } };
+	const imageResult = inspectPreview('selector img { display:block; }', scope, node);
+	assert.equal(imageResult.css, scope + ' img{display:block;}');
+	assert.equal(imageResult.matchCount, 1);
+	assert.equal(imageResult.measurableTargets, 1);
+	const ruleWithoutTarget = inspectPreview('selector hr { display:block; }', scope, node);
+	assert.equal(ruleWithoutTarget.css, scope + ' hr{display:block;}');
+	assert.equal(ruleWithoutTarget.matchCount, 0);
+	assert.equal(ruleWithoutTarget.measurableTargets, 1);
+	const dynamicState = inspectPreview('selector:hover { opacity:.8; }', scope, node);
+	assert.equal(dynamicState.css, scope + ':hover{opacity:.8;}');
+	assert.equal(dynamicState.matchCount, 0);
+	assert.equal(dynamicState.measurableTargets, 0);
 });
 
 test('editor preview compiler accepts the public syntax and rejects unsafe scope escapes', () => {
